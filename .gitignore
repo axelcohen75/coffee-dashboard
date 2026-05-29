@@ -1,0 +1,11 @@
+# Data files — do not commit CSV price data
+data/*.csv
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.env
+
+# Streamlit local config
+.streamlit/secrets.toml
