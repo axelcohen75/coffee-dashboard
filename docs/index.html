@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Coffee Market Monitor</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>☕</text></svg>">
+    <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=JetBrains+Mono:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdn.plot.ly/plotly-2.32.0.min.js" charset="utf-8"></script>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- HEADER                                                                 -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<header class="header">
+    <span class="header-logo"><span class="slash">///</span> COFFEE</span>
+    <span class="header-subtitle">DERIVATIVES</span>
+    <nav class="nav-tabs">
+        <button class="nav-tab active" data-tab="overview">OVERVIEW</button>
+        <button class="nav-tab" data-tab="inventory">PHYSICAL</button>
+        <button class="nav-tab" data-tab="brazil">BRAZIL PARITY</button>
+        <button class="nav-tab" data-tab="differentials">DIFFERENTIALS</button>
+        <button class="nav-tab" data-tab="weather">WEATHER</button>
+        <button class="nav-tab" data-tab="positioning">POSITIONING</button>
+    </nav>
+    <div class="header-right">
+        <span class="header-updated" id="last-updated">Loading…</span>
+    </div>
+</header>
+
+<div id="main-content">
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- OVERVIEW TAB                                                           -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div id="tab-overview" class="tab-panel active">
+    <div class="overview-grid">
+        <!-- LEFT: Spot Prices + News -->
+        <div>
+            <div class="panel">
+                <div class="panel-header">
+                    <span class="panel-title">SPOT PRICES</span>
+                    <span class="panel-subtitle">LIVE</span>
+                </div>
+                <div class="panel-body" id="spot-prices">
+                    <div class="loading">Loading…</div>
+                </div>
+            </div>
+
+            <div class="panel" style="margin-top:0.8rem;">
+                <div class="panel-header">
+                    <span class="panel-title">COFFEE NEWS</span>
+                </div>
+                <div class="panel-body news-list" id="news-list">
+                    <div class="loading">Loading…</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- CENTER: Charts -->
+        <div>
+            <!-- Price Evolution -->
+            <div class="panel">
+                <div class="panel-header">
+                    <div>
+                        <span class="panel-title">PRICE EVOLUTION</span>
+                        <span class="panel-subtitle"> KC ARABICA // FRONT MONTH</span>
+                    </div>
+                </div>
+                <div class="panel-body">
+                    <div class="horizon-bar">
+                        <button class="horizon-btn" data-horizon="1M">1M</button>
+                        <button class="horizon-btn" data-horizon="3M">3M</button>
+                        <button class="horizon-btn" data-horizon="6M">6M</button>
+                        <button class="horizon-btn" data-horizon="YTD">YTD</button>
+                        <button class="horizon-btn active" data-horizon="1Y">1Y</button>
+                        <button class="horizon-btn" data-horizon="5Y">5Y</button>
+                        <button class="horizon-btn" data-horizon="10Y">10Y</button>
+                    </div>
+                    <div id="chart-price-evolution" class="chart-container"></div>
+                </div>
+            </div>
+
+            <!-- Bottom row: Spread + Calendar -->
+            <div class="two-col" style="margin-top:0.8rem;">
+                <div class="panel">
+                    <div class="panel-header">
+                        <div>
+                            <span class="panel-title">SPREAD MONITOR</span>
+                            <span class="panel-subtitle"> Arabica premium over Robusta // ¢/lb</span>
+                        </div>
+                    </div>
+                    <div class="panel-body-flush">
+                        <div id="chart-spread-monitor" class="chart-container"></div>
+                    </div>
+                </div>
+                <div class="panel">
+                    <div class="panel-header">
+                        <div>
+                            <span class="panel-title">CALENDAR SPREAD</span>
+                            <span class="panel-subtitle"> KC N-Z (Jul-Dec) // ¢/lb</span>
+                        </div>
+                    </div>
+                    <div class="panel-body-flush">
+                        <div id="chart-calendar-spread" class="chart-container"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- RIGHT: Term structure + Performance + Spread Dashboard + Polymarket -->
+        <div>
+            <div class="panel">
+                <div class="panel-header">
+                    <span class="panel-title">FUTURES TERM STRUCTURE</span>
+                    <span class="panel-subtitle">KC // DELIVERY</span>
+                </div>
+                <div class="panel-body-flush">
+                    <div id="chart-term-structure" class="chart-container"></div>
+                </div>
+            </div>
+
+            <div class="panel" style="margin-top:0.8rem;">
+                <div class="panel-header">
+                    <span class="panel-title">PERFORMANCE</span>
+                </div>
+                <div class="panel-body" id="performance-table"></div>
+            </div>
+
+            <div class="panel" style="margin-top:0.8rem;">
+                <div class="panel-header">
+                    <span class="panel-title">SPREAD DASHBOARD</span>
+                </div>
+                <div class="panel-body" id="spread-dashboard"></div>
+            </div>
+
+            <div class="panel" style="margin-top:0.8rem;">
+                <div class="panel-header">
+                    <span class="panel-title">POLYMARKET — COFFEE</span>
+                </div>
+                <div class="panel-body" id="polymarket-list">
+                    <div class="loading">Loading…</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- INVENTORY TAB                                                          -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div id="tab-inventory" class="tab-panel">
+    <h2 style="font-size:1rem;margin-bottom:0.5rem;">/// INVENTORY <span style="color:var(--text-muted);font-size:0.75rem;">ICE CERTIFIED STOCKS — ARABICA & ROBUSTA</span></h2>
+    <div class="kpi-row" id="inv-kpis"></div>
+    <div class="col-2-1">
+        <div class="panel">
+            <div class="panel-header"><span class="panel-title">ARABICA STOCKS vs TIME</span></div>
+            <div class="panel-body-flush"><div id="chart-inv-arabica" class="chart-container"></div></div>
+        </div>
+        <div class="panel">
+            <div class="panel-header"><span class="panel-title">BREAKDOWN BY PORT</span></div>
+            <div class="panel-body-flush"><div id="chart-inv-ports" class="chart-container"></div></div>
+        </div>
+    </div>
+    <div class="panel" style="margin-top:0.8rem;">
+        <div class="panel-header"><span class="panel-title">ROBUSTA STOCKS (ICE EUROPE) — TONNES</span></div>
+        <div class="panel-body-flush"><div id="chart-inv-robusta" class="chart-container"></div></div>
+    </div>
+    <div class="footer" id="inv-note"></div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- BRAZIL PARITY TAB                                                      -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div id="tab-brazil" class="tab-panel">
+    <h2 style="font-size:1rem;margin-bottom:0.5rem;">/// BRAZIL PARITY <span style="color:var(--text-muted);font-size:0.75rem;">FOB SANTOS EXPORT PARITY vs CEPEA</span></h2>
+    <div class="kpi-row" id="brazil-kpis"></div>
+    <div class="two-col">
+        <div class="panel">
+            <div class="panel-header"><span class="panel-title">EXPORT PARITY — HISTORICAL</span></div>
+            <div class="panel-body-flush"><div id="chart-brazil-parity" class="chart-container"></div></div>
+        </div>
+        <div class="panel">
+            <div class="panel-header"><span class="panel-title">BRL/USD PTAX</span></div>
+            <div class="panel-body-flush"><div id="chart-brazil-fx" class="chart-container"></div></div>
+        </div>
+    </div>
+    <div class="panel" style="margin-top:0.8rem;">
+        <div class="panel-header"><span class="panel-title">SENSITIVITY MATRIX — PARITY (R$/SACA)</span></div>
+        <div class="panel-body" id="brazil-sensitivity"><div class="loading">Loading…</div></div>
+    </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- DIFFERENTIALS TAB                                                      -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div id="tab-differentials" class="tab-panel">
+    <h2 style="font-size:1rem;margin-bottom:0.5rem;">/// DIFFERENTIALS <span style="color:var(--text-muted);font-size:0.75rem;">ICO INDICATOR PRICES — FOB BY ORIGIN</span></h2>
+    <div class="kpi-row" id="diff-kpis"></div>
+    <div class="panel">
+        <div class="panel-header"><span class="panel-title">DIFFERENTIALS vs FUTURES — 5Y HISTORY</span></div>
+        <div class="panel-body-flush"><div id="chart-diff-history" class="chart-container"></div></div>
+    </div>
+    <div class="panel" style="margin-top:0.8rem;">
+        <div class="panel-header">
+            <span class="panel-title">SEASONAL HEATMAP</span>
+            <select id="diff-origin-select"></select>
+        </div>
+        <div class="panel-body-flush"><div id="chart-diff-heatmap" class="chart-container"></div></div>
+    </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- WEATHER TAB                                                            -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div id="tab-weather" class="tab-panel">
+    <h2 style="font-size:1rem;margin-bottom:0.5rem;">/// WEATHER <span style="color:var(--text-muted);font-size:0.75rem;">BRAZIL COFFEE REGIONS — MINAS GERAIS & CERRADO</span></h2>
+    <div id="weather-alerts"></div>
+    <div class="kpi-row" id="weather-kpis" style="flex-wrap:wrap;"></div>
+    <div class="two-col">
+        <div class="panel">
+            <div class="panel-header"><span class="panel-title">ANOMALY MAP</span></div>
+            <div class="panel-body-flush"><div id="chart-weather-map" class="chart-container"></div></div>
+        </div>
+        <div>
+            <div style="margin-bottom:0.5rem;">
+                <select id="weather-zone-select" style="width:100%;"></select>
+            </div>
+            <div class="panel">
+                <div class="panel-body-flush"><div id="chart-weather-temp" class="chart-container"></div></div>
+            </div>
+        </div>
+    </div>
+    <div class="panel" style="margin-top:0.8rem;">
+        <div class="panel-header"><span class="panel-title">PRECIPITATION</span></div>
+        <div class="panel-body-flush"><div id="chart-weather-precip" class="chart-container"></div></div>
+    </div>
+    <div class="panel" style="margin-top:0.8rem;">
+        <div class="panel-header"><span class="panel-title">PHENOLOGICAL CALENDAR — ARABICA</span></div>
+        <div class="panel-body" id="phenology-bar"></div>
+    </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- POSITIONING TAB                                                        -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div id="tab-positioning" class="tab-panel">
+    <h2 style="font-size:1rem;margin-bottom:0.5rem;">/// POSITIONING <span style="color:var(--text-muted);font-size:0.75rem;">CFTC COT — MANAGED MONEY & COMMERCIALS</span></h2>
+    <div class="kpi-row" id="pos-kpis"></div>
+    <div id="pos-signal"></div>
+    <div class="col-3-1">
+        <div>
+            <div class="panel">
+                <div class="panel-body-flush"><div id="chart-pos-mm" class="chart-container"></div></div>
+            </div>
+            <div class="panel" style="margin-top:0.8rem;">
+                <div class="panel-body-flush"><div id="chart-pos-comm" class="chart-container"></div></div>
+            </div>
+            <div class="panel" style="margin-top:0.8rem;">
+                <div class="panel-body-flush"><div id="chart-pos-zscore" class="chart-container"></div></div>
+            </div>
+        </div>
+        <div>
+            <div class="panel">
+                <div class="panel-header"><span class="panel-title">Z-SCORE GAUGE</span></div>
+                <div class="panel-body" id="pos-gauge"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+</div><!-- main-content -->
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- FOOTER                                                                 -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<footer class="footer">
+    Sources: ICE Futures via Yahoo Finance · Open-Meteo · CFTC COT · Google News RSS · Polymarket Gamma API · BCB PTAX ·
+    Conversion: 1 USD/t ÷ 22.0462 = ¢/lb · 1 saca = 132.277 lbs
+</footer>
+
+<script src="coffee-data.js"></script>
+<script src="coffee-markets.js"></script>
+</body>
+</html>
