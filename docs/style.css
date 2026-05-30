@@ -11,9 +11,9 @@
     --text-primary: #e8ecf1;
     --text-secondary: #8899aa;
     --text-muted: #4a5568;
-    --accent: #00D4AA;
-    --accent-dim: rgba(0, 212, 170, 0.15);
-    --green: #00D4AA;
+    --accent: #00B894;
+    --accent-dim: rgba(0, 184, 148, 0.15);
+    --green: #00B894;
     --red: #E76F51;
     --orange: #F4A261;
     --blue: #457B9D;
@@ -114,16 +114,16 @@ body {
 .btn-refresh {
     padding: 0.3rem 0.8rem;
     font-size: 0.7rem;
-    background: rgba(0,212,170,0.1);
+    background: rgba(0,184,148,0.1);
     color: var(--accent);
-    border: 1px solid rgba(0,212,170,0.3);
+    border: 1px solid rgba(0,184,148,0.3);
     border-radius: 3px;
     cursor: pointer;
     font-family: var(--font-sans);
     font-weight: 600;
     letter-spacing: 0.5px;
 }
-.btn-refresh:hover { background: rgba(0,212,170,0.2); }
+.btn-refresh:hover { background: rgba(0,184,148,0.2); }
 
 /* ── Tab panels ──────────────────────────────────────────────────────────── */
 
@@ -134,10 +134,14 @@ body {
 
 .overview-grid {
     display: grid;
-    grid-template-columns: 380px 1fr;
+    grid-template-columns: 340px 1fr 300px;
     grid-template-rows: auto;
     gap: 0.8rem;
     min-height: calc(100vh - 50px);
+}
+
+.overview-right {
+    min-width: 0;
 }
 
 .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 0.8rem; }
@@ -363,8 +367,8 @@ body {
     border-radius: 2px;
 }
 
-.spread-item:hover { background: rgba(0,212,170,0.06); }
-.spread-item.active { background: rgba(0,212,170,0.12); border-left: 2px solid var(--accent); }
+.spread-item:hover { background: rgba(0,184,148,0.06); }
+.spread-item.active { background: rgba(0,184,148,0.12); border-left: 2px solid var(--accent); }
 
 .spread-label {
     font-size: 0.7rem;
@@ -467,7 +471,7 @@ body {
 }
 .alert-danger { background: rgba(231,111,81,0.15); border: 1px solid var(--red); color: var(--red); }
 .alert-warning { background: rgba(244,162,97,0.15); border: 1px solid var(--orange); color: var(--orange); }
-.alert-ok { background: rgba(0,212,170,0.08); border: 1px solid var(--border); color: var(--accent); }
+.alert-ok { background: rgba(0,184,148,0.08); border: 1px solid var(--border); color: var(--accent); }
 
 /* ── Chart containers ────────────────────────────────────────────────── */
 
@@ -537,12 +541,12 @@ select:focus { border-color: var(--accent); }
 }
 
 .sens-table th {
-    background: rgba(0,212,170,0.08);
+    background: rgba(0,184,148,0.08);
     color: var(--text-secondary);
     font-weight: 600;
 }
 
-.sens-positive { background: rgba(0,212,170,0.1); }
+.sens-positive { background: rgba(0,184,148,0.1); }
 .sens-negative { background: rgba(231,111,81,0.1); }
 
 /* ── Phenology timeline ──────────────────────────────────────────────── */
@@ -649,16 +653,22 @@ select:focus { border-color: var(--accent); }
 
 /* ── Responsive ──────────────────────────────────────────────────────── */
 
+@media (max-width: 1600px) {
+    .overview-grid { grid-template-columns: 320px 1fr 280px; }
+}
+
 @media (max-width: 1400px) {
-    .overview-grid { grid-template-columns: 340px 1fr; }
+    .overview-grid { grid-template-columns: 300px 1fr 260px; }
 }
 
 @media (max-width: 1200px) {
-    .overview-grid { grid-template-columns: 300px 1fr; }
+    .overview-grid { grid-template-columns: 280px 1fr; }
+    .overview-right { display: none; }
 }
 
 @media (max-width: 900px) {
     .overview-grid { grid-template-columns: 1fr; }
+    .overview-right { display: block; }
     .two-col, .three-col, .four-col, .col-2-1, .col-3-1 { grid-template-columns: 1fr; }
     .nav-tabs { overflow-x: auto; }
 }
@@ -671,8 +681,8 @@ select:focus { border-color: var(--accent); }
     border-radius: 2px;
     padding: 0.4rem 0.5rem;
 }
-.spot-row:hover { background: rgba(0,212,170,0.06); }
-.spot-row.selected { background: rgba(0,212,170,0.12); border-left: 3px solid var(--accent); }
+.spot-row:hover { background: rgba(0,184,148,0.06); }
+.spot-row.selected { background: rgba(0,184,148,0.12); border-left: 3px solid var(--accent); }
 
 .spot-perf {
     font-size: 0.6rem;
@@ -742,7 +752,7 @@ select:focus { border-color: var(--accent); }
     vertical-align: middle;
 }
 
-.tag-usda { background: rgba(0,212,170,0.15); color: var(--green); }
+.tag-usda { background: rgba(0,184,148,0.15); color: var(--green); }
 .tag-cftc { background: rgba(69,123,157,0.2); color: var(--blue); }
 .tag-ice { background: rgba(244,162,97,0.15); color: var(--orange); }
 .tag-brazil { background: rgba(233,196,106,0.15); color: var(--yellow); }

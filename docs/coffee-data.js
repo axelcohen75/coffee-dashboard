@@ -3,8 +3,8 @@
  */
 
 const COLORS = {
-    accent: '#00D4AA',
-    green: '#00D4AA',
+    accent: '#00B894',
+    green: '#00B894',
     red: '#E76F51',
     orange: '#F4A261',
     blue: '#457B9D',
@@ -24,7 +24,7 @@ const PLOTLY_LAYOUT = {
     xaxis: { gridcolor: COLORS.grid, zerolinecolor: COLORS.grid },
     yaxis: { gridcolor: COLORS.grid, zerolinecolor: COLORS.grid },
     legend: { orientation: 'h', y: 1.08, font: { size: 10 } },
-    modebar: { bgcolor: 'rgba(0,0,0,0)', color: '#6b7b8d', activecolor: '#00D4AA' },
+    modebar: { bgcolor: 'rgba(0,0,0,0)', color: '#6b7b8d', activecolor: '#00B894' },
 };
 
 const PLOTLY_CONFIG = {

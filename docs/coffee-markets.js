@@ -39,6 +39,10 @@ function setupTabs() {
             if (target === 'differentials' && !document.getElementById('tab-differentials').dataset.rendered) renderDifferentials();
             if (target === 'weather' && !document.getElementById('tab-weather').dataset.rendered) renderWeather();
             if (target === 'positioning' && !document.getElementById('tab-positioning').dataset.rendered) renderPositioning();
+            if (target === 'options' && !document.getElementById('tab-options').dataset.rendered) {
+                document.getElementById('tab-options').dataset.rendered = '1';
+                if (typeof renderOptions === 'function') renderOptions();
+            }
         });
     });
 }
@@ -59,6 +63,16 @@ function renderOverview() {
     renderPolymarket();
     setupHorizonButtons();
     setupTermStructureCompare();
+    setupSeasonalToggle();
+}
+
+function setupSeasonalToggle() {
+    const toggle = document.getElementById('seasonal-toggle');
+    if (!toggle) return;
+    toggle.addEventListener('change', () => {
+        const activeHorizon = document.querySelector('.horizon-btn.active')?.dataset.horizon || '1Y';
+        renderPriceEvolution(activeHorizon);
+    });
 }
 
 // ── Clickable Spot Prices with multi-select ─────────────────────────────
@@ -193,10 +207,61 @@ function renderPriceEvolution(horizon) {
         });
     }
 
-    Plotly.react('chart-price-evolution', traces, mergeLayout({
+    const seasonalToggle = document.getElementById('seasonal-toggle');
+    if (seasonalToggle && seasonalToggle.checked && !multiMode) {
+        const seasonal = DATA.futures?.kc?.seasonal;
+        if (seasonal && seasonal.length) {
+            const mainAsset = getAssetData(selectedAssets[0]);
+            const filtered = mainAsset?.history?.filter(d => d.date >= cutoff) || [];
+            if (filtered.length) {
+                const startDOY = getDOY(filtered[0].date);
+                const endDOY = getDOY(filtered[filtered.length - 1].date);
+
+                let seasonalFiltered;
+                if (startDOY <= endDOY) {
+                    seasonalFiltered = seasonal.filter(s => s.doy >= startDOY && s.doy <= endDOY);
+                } else {
+                    seasonalFiltered = seasonal.filter(s => s.doy >= startDOY || s.doy <= endDOY);
+                }
+
+                if (seasonalFiltered.length) {
+                    const xDates = seasonalFiltered.map(s => {
+                        const yr = new Date().getFullYear();
+                        const d = new Date(yr, 0);
+                        d.setDate(s.doy);
+                        return d.toISOString().slice(0, 10);
+                    });
+
+                    traces.push({
+                        x: xDates,
+                        y: seasonalFiltered.map(s => s.value),
+                        name: '5Y Seasonal',
+                        yaxis: 'y2',
+                        line: { color: COLORS.purple, width: 1.5, dash: 'dot' },
+                        opacity: 0.7,
+                    });
+                }
+            }
+        }
+    }
+
+    const layoutOverrides = {
         height: 310,
         yaxis: { title: multiMode ? '%' : (getAssetData(selectedAssets[0])?.unit || '¢/lb') },
-    }), PLOTLY_CONFIG);
+    };
+
+    if (seasonalToggle && seasonalToggle.checked && !multiMode) {
+        layoutOverrides.yaxis2 = {
+            title: 'Seasonal (¢/lb)',
+            overlaying: 'y',
+            side: 'right',
+            showgrid: false,
+            titlefont: { color: COLORS.purple, size: 10 },
+            tickfont: { color: COLORS.purple, size: 9 },
+        };
+    }
+
+    Plotly.react('chart-price-evolution', traces, mergeLayout(layoutOverrides), PLOTLY_CONFIG);
 }
 
 // ── Term Structure with date comparison ──────────────────────────────────
@@ -322,7 +387,6 @@ function clearTsDates() {
 // ── Spread Monitor with dropdown ────────────────────────────────────────
 
 const SPREAD_DETAILS = {
-    arb_rob: { label: 'Arb-Rob Spread', desc: 'KC Arabica − RC Robusta (¢/lb)', months: '' },
     kn: { label: 'KC K-N', desc: 'May → Jul', months: 'Old crop vs new crop transition' },
     nz: { label: 'KC N-Z', desc: 'Jul → Dec', months: 'Harvest pressure gauge' },
     zh: { label: 'KC Z-H', desc: 'Dec → Mar', months: 'Inter-crop carry' },
@@ -331,7 +395,7 @@ const SPREAD_DETAILS = {
 
 function setupSpreadDropdown() {
     const sel = document.getElementById('spread-select');
-    let html = '<option value="arb_rob">Arb-Rob Spread</option>';
+    let html = '';
     for (const def of SPREAD_DEFS) {
         const detail = SPREAD_DETAILS[def.key] || {};
         html += `<option value="${def.key}">${def.label} (${def.desc})</option>`;
@@ -344,7 +408,7 @@ function setupSpreadDropdown() {
 
 function renderSpreadMonitorFromDropdown() {
     const sel = document.getElementById('spread-select');
-    const key = sel.value || 'arb_rob';
+    const key = sel.value || 'nz';
     renderSpreadMonitor(key);
 }
 
@@ -352,24 +416,14 @@ function renderSpreadMonitor(spreadKey) {
     const chartEl = document.getElementById('chart-spread-monitor');
     const subtitleEl = document.getElementById('spread-chart-subtitle');
 
-    if (!spreadKey || spreadKey === 'arb_rob') {
-        const arb = DATA.futures.arb_rob;
-        if (!arb || !arb.history || !arb.history.length) {
-            chartEl.innerHTML = '<div class="loading">Arb-Rob spread requires RC data</div>';
-            return;
-        }
-        renderSpreadChart(arb.history, arb.mean, arb.current, 'KC − RC Spread');
-        if (subtitleEl) subtitleEl.textContent = ' Arabica premium over Robusta // ¢/lb';
-    } else {
-        const sp = DATA.spreads?.[spreadKey];
-        if (!sp || !sp.history || !sp.history.length) {
-            chartEl.innerHTML = '<div class="loading">No data for this spread</div>';
-            return;
-        }
-        const detail = SPREAD_DETAILS[spreadKey] || {};
-        renderSpreadChart(sp.history, sp.mean, sp.current, sp.label);
-        if (subtitleEl) subtitleEl.textContent = ` ${sp.label} — ${detail.months || ''} // ¢/lb`;
+    const sp = DATA.spreads?.[spreadKey];
+    if (!sp || !sp.history || !sp.history.length) {
+        chartEl.innerHTML = '<div class="loading">No data for this timespread</div>';
+        return;
     }
+    const detail = SPREAD_DETAILS[spreadKey] || {};
+    renderSpreadChart(sp.history, sp.mean, sp.current, sp.label);
+    if (subtitleEl) subtitleEl.textContent = ` ${sp.label} — ${detail.months || ''} // ¢/lb`;
 }
 
 function renderSpreadChart(history, mean, current, name) {
@@ -406,18 +460,6 @@ function renderSpreadChart(history, mean, current, name) {
 function renderSpreadDashboard() {
     const el = document.getElementById('spread-dashboard');
     let html = '';
-
-    const arb = DATA.futures.arb_rob;
-    if (arb && arb.current != null) {
-        const cls = arb.current >= 0 ? 'up' : 'down';
-        html += `<div class="spread-item${activeSpread === 'arb_rob' ? ' active' : ''}" onclick="selectSpread('arb_rob')">
-            <div>
-                <span class="spread-label" style="font-weight:600;">Arb-Rob</span>
-                <div style="font-size:0.6rem;color:var(--text-muted);">KC − RC premium</div>
-            </div>
-            <span class="spread-value ${cls}">${arb.current >= 0 ? '+' : ''}${fmtNum(arb.current)} ¢/lb</span>
-        </div>`;
-    }
 
     for (const def of SPREAD_DEFS) {
         const sp = DATA.spreads?.[def.key];
