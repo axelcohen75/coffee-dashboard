@@ -791,44 +791,76 @@ def fetch_polymarket() -> list[dict]:
 # ── Simulated data for briques without free API ─────────────────────────────
 
 def generate_stocks_data() -> dict:
-    """ICE certified stocks — simulated pending real PDF parsing."""
-    print("  Generating simulated stocks data…")
-    np.random.seed(42)
-    dates = pd.bdate_range("2019-01-01", pd.Timestamp.now().normalize())
-    n = len(dates)
+    """ICE certified stocks — loads from CSV files if available, otherwise returns empty."""
+    print("  Loading ICE certified stocks…")
 
-    arabica_base = 2_200_000
-    trend = np.linspace(0, -1_400_000, n)
-    seasonal = 200_000 * np.sin(np.arange(n) * 2 * np.pi / 252)
-    noise = np.cumsum(np.random.randn(n) * 5000)
-    arabica = np.maximum(arabica_base + trend + seasonal + noise, 300_000)
+    result = {"simulated": False}
 
-    robusta_base = 4_500
-    r_trend = np.linspace(0, -2_000, n)
-    r_noise = np.cumsum(np.random.randn(n) * 30)
-    robusta = np.maximum(robusta_base + r_trend + r_noise, 1_000)
+    # Arabica stocks: data/ice_arabica_stocks.csv (columns: Date, Total, port1, port2, ...)
+    arab_path = DATA_DIR / "ice_arabica_stocks.csv"
+    if arab_path.exists():
+        try:
+            df = pd.read_csv(arab_path, parse_dates=["Date"])
+            df = df.sort_values("Date")
+            total_col = "Total" if "Total" in df.columns else df.columns[1]
+            current = int(df[total_col].iloc[-1])
+            one_month_idx = max(0, len(df) - 22)
+            one_month_ago = int(df[total_col].iloc[one_month_idx])
+            history = [{"date": row["Date"].strftime("%Y-%m-%d"), "value": int(row[total_col])}
+                       for _, row in df.iterrows()]
 
-    ports = {"Antwerp": 0.25, "Bremen": 0.15, "Hamburg": 0.12,
-             "Houston": 0.18, "New Orleans": 0.10, "Miami": 0.08,
-             "Barcelona": 0.07, "Other": 0.05}
+            port_cols = [c for c in df.columns if c not in ("Date", "Total", "date", "total")]
+            ports = {}
+            if port_cols:
+                last_row = df.iloc[-1]
+                for c in port_cols:
+                    val = last_row.get(c)
+                    if pd.notna(val) and float(val) > 0:
+                        ports[c] = int(float(val))
 
-    current_arab = int(arabica[-1])
-    return {
-        "simulated": True,
-        "arabica": {
-            "current": current_arab,
-            "one_month_ago": int(arabica[-22]) if n > 22 else current_arab,
-            "history": [{"date": d.strftime("%Y-%m-%d"), "value": int(v)}
-                        for d, v in list(zip(dates, arabica))[::5]],  # downsample
-        },
-        "robusta": {
-            "current": int(robusta[-1]),
-            "one_month_ago": int(robusta[-22]) if n > 22 else int(robusta[-1]),
-            "history": [{"date": d.strftime("%Y-%m-%d"), "value": int(v)}
-                        for d, v in list(zip(dates, robusta))[::5]],
-        },
-        "ports": {p: int(current_arab * s) for p, s in ports.items()},
-    }
+            result["arabica"] = {
+                "current": current,
+                "one_month_ago": one_month_ago,
+                "history": history,
+            }
+            result["ports"] = ports
+            print(f"    Arabica stocks: {len(history)} rows, current={current:,}")
+        except Exception as e:
+            print(f"    Failed to load arabica stocks CSV: {e}")
+            result["arabica"] = {"current": 0, "one_month_ago": 0, "history": []}
+            result["ports"] = {}
+    else:
+        print(f"    No arabica stocks CSV found at {arab_path}")
+        print(f"    To add real data, place a CSV with columns: Date,Total,[port1],[port2],...")
+        result["arabica"] = {"current": 0, "one_month_ago": 0, "history": []}
+        result["ports"] = {}
+
+    # Robusta stocks: data/ice_robusta_stocks.csv (columns: Date, Total)
+    rob_path = DATA_DIR / "ice_robusta_stocks.csv"
+    if rob_path.exists():
+        try:
+            df = pd.read_csv(rob_path, parse_dates=["Date"])
+            df = df.sort_values("Date")
+            total_col = "Total" if "Total" in df.columns else df.columns[1]
+            current = int(df[total_col].iloc[-1])
+            one_month_idx = max(0, len(df) - 22)
+            one_month_ago = int(df[total_col].iloc[one_month_idx])
+            history = [{"date": row["Date"].strftime("%Y-%m-%d"), "value": int(row[total_col])}
+                       for _, row in df.iterrows()]
+            result["robusta"] = {
+                "current": current,
+                "one_month_ago": one_month_ago,
+                "history": history,
+            }
+            print(f"    Robusta stocks: {len(history)} rows, current={current:,}")
+        except Exception as e:
+            print(f"    Failed to load robusta stocks CSV: {e}")
+            result["robusta"] = {"current": 0, "one_month_ago": 0, "history": []}
+    else:
+        print(f"    No robusta stocks CSV found at {rob_path}")
+        result["robusta"] = {"current": 0, "one_month_ago": 0, "history": []}
+
+    return result
 
 
 def generate_differentials() -> dict:
