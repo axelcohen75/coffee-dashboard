@@ -14,11 +14,16 @@ async function init() {
         DATA = await resp.json();
         document.getElementById('last-updated').textContent =
             'Updated ' + new Date(DATA.generated).toUTCString().slice(0, 25) + ' UTC';
-        renderOverview();
-        setupTabs();
     } catch (e) {
         document.getElementById('main-content').innerHTML =
             '<div class="loading">Failed to load data. Run: python scripts/fetch_market_data.py</div>';
+        return;
+    }
+    try {
+        renderOverview();
+        setupTabs();
+    } catch (e) {
+        console.error('Render error:', e);
     }
 }
 
