@@ -56,11 +56,9 @@ function renderOverview() {
     renderPriceEvolution('1Y');
     renderTermStructure();
     renderSpreadDashboard();
-    setupSpreadDropdown();
-    renderSpreadMonitorFromDropdown();
+    selectSpread('nz');
     renderKeyDates();
     renderNews();
-    renderPolymarket();
     setupHorizonButtons();
     setupTermStructureCompare();
     setupSeasonalToggle();
@@ -83,6 +81,7 @@ function getAssetData(key) {
     if (key === 'rc') return { label: 'RC Robusta', price: f.rc.front, unit: '$/t', history: f.rc.history, color: COLORS.blue };
     if (key === 'rc_cl') return { label: 'RC (¢/lb)', price: f.rc.front_cents_lb, unit: '¢/lb', history: f.rc.history_cents_lb, color: '#6BA3BE' };
     if (key === 'arb_rob') return { label: 'Arb-Rob Spread', price: f.arb_rob?.current, unit: '¢/lb', history: f.arb_rob?.history, color: COLORS.orange };
+    if (key === 'brl') return { label: 'BRL/USD', price: DATA.brazil?.fx, unit: '', history: DATA.brazil?.fx_history, color: COLORS.yellow };
     return null;
 }
 
@@ -111,6 +110,7 @@ function renderSpotPrices() {
         { key: 'rc', label: 'RC Robusta' },
         { key: 'rc_cl', label: 'RC (¢/lb equiv.)' },
         { key: 'arb_rob', label: 'Arb-Rob Spread' },
+        { key: 'brl', label: 'BRL/USD (PTAX)' },
     ];
 
     let html = `<div style="display:flex;justify-content:flex-end;gap:0.5rem;margin-bottom:0.3rem;padding:0 0.2rem;">
@@ -121,7 +121,7 @@ function renderSpotPrices() {
     for (const asset of assets) {
         const data = getAssetData(asset.key);
         if (!data || data.price == null) continue;
-        const canSelect = ['kc', 'rc', 'arb_rob'].includes(asset.key);
+        const canSelect = ['kc', 'rc', 'arb_rob', 'brl'].includes(asset.key);
         const sel = selectedAssets.includes(asset.key) ? ' selected' : '';
         const perf1m = computePerf(data.history, 30);
         const perfYtd = computeYTDPerf(data.history);
@@ -484,8 +484,6 @@ function renderSpreadDashboard() {
 function selectSpread(key) {
     activeSpread = key;
     renderSpreadDashboard();
-    const sel = document.getElementById('spread-select');
-    if (sel) sel.value = key;
     renderSpreadMonitor(key);
 }
 
@@ -664,10 +662,20 @@ function renderInventory() {
 
     const arab = s.arabica;
     const rob = s.robusta;
-    const arabVar = arab.current - arab.one_month_ago;
-    const arabVarPct = ((arabVar / arab.one_month_ago) * 100).toFixed(1);
+
+    if (!arab.current && !rob.current) {
+        document.getElementById('inv-kpis').innerHTML = `
+            <div class="alert alert-warning" style="width:100%;">
+                No stock data available. Place CSV files in <code>data/ice_arabica_stocks.csv</code> and <code>data/ice_robusta_stocks.csv</code> with columns: Date, Total, [port columns].
+                Then re-run <code>python scripts/fetch_market_data.py</code>.
+            </div>`;
+        return;
+    }
+
+    const arabVar = arab.one_month_ago ? arab.current - arab.one_month_ago : 0;
+    const arabVarPct = arab.one_month_ago ? ((arabVar / arab.one_month_ago) * 100).toFixed(1) : '0.0';
     const dailyCons = 100000000 / 365;
-    const daysCons = Math.round(arab.current / dailyCons);
+    const daysCons = arab.current ? Math.round(arab.current / dailyCons) : 0;
 
     document.getElementById('inv-kpis').innerHTML = `
         <div class="kpi-card">
@@ -692,15 +700,20 @@ function renderInventory() {
         fill: 'tozeroy', fillcolor: 'rgba(0,212,170,0.06)',
     }], mergeLayout({ height: 350, yaxis: { title: 'bags (60kg)' } }), PLOTLY_CONFIG);
 
-    const ports = s.ports;
+    const ports = s.ports || {};
     const portNames = Object.keys(ports).sort((a, b) => ports[b] - ports[a]);
-    Plotly.react('chart-inv-ports', [{
-        y: portNames, x: portNames.map(p => ports[p]),
-        type: 'bar', orientation: 'h',
-        marker: { color: COLORS.accent },
-        text: portNames.map(p => fmtInt(ports[p])),
-        textposition: 'auto',
-    }], mergeLayout({ height: 350, margin: { l: 100 } }), PLOTLY_CONFIG);
+    if (portNames.length) {
+        Plotly.react('chart-inv-ports', [{
+            y: portNames, x: portNames.map(p => ports[p]),
+            type: 'bar', orientation: 'h',
+            marker: { color: COLORS.accent },
+            text: portNames.map(p => fmtInt(ports[p])),
+            textposition: 'auto',
+        }], mergeLayout({ height: 350, margin: { l: 100 } }), PLOTLY_CONFIG);
+    } else {
+        document.getElementById('chart-inv-ports').innerHTML =
+            '<div style="padding:2rem;color:var(--text-muted);text-align:center;">No port breakdown available. Add port columns to your CSV.</div>';
+    }
 
     const rh = rob.history;
     Plotly.react('chart-inv-robusta', [{
@@ -711,7 +724,7 @@ function renderInventory() {
 
     if (s.simulated) {
         document.getElementById('inv-note').textContent =
-            '⚠ Stock data is simulated. Connect ICE daily reports for live data.';
+            'Stock data is simulated. Place real CSV files in data/ and re-run the fetcher.';
     }
 }
 
