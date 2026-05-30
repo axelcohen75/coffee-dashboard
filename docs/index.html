@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Coffee Market Monitor</title>
+    <title>Coffee Platform</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>☕</text></svg>">
     <link rel="stylesheet" href="style.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -17,7 +17,7 @@
 <!-- ═══════════════════════════════════════════════════════════════════════ -->
 <header class="header">
     <span class="header-logo"><span class="slash">///</span> COFFEE</span>
-    <span class="header-subtitle">DERIVATIVES</span>
+    <span class="header-subtitle">PLATFORM</span>
     <nav class="nav-tabs">
         <button class="nav-tab active" data-tab="overview">OVERVIEW</button>
         <button class="nav-tab" data-tab="inventory">PHYSICAL</button>
@@ -25,6 +25,7 @@
         <button class="nav-tab" data-tab="differentials">DIFFERENTIALS</button>
         <button class="nav-tab" data-tab="weather">WEATHER</button>
         <button class="nav-tab" data-tab="positioning">POSITIONING</button>
+        <button class="nav-tab" data-tab="options">OPTIONS</button>
     </nav>
     <div class="header-right">
         <span class="header-updated" id="last-updated">Loading…</span>
@@ -38,7 +39,7 @@
 <!-- ═══════════════════════════════════════════════════════════════════════ -->
 <div id="tab-overview" class="tab-panel active">
     <div class="overview-grid">
-        <!-- LEFT SIDEBAR: Spot Prices (clickable) + Spread Dashboard + Calendar + News + Polymarket -->
+        <!-- LEFT SIDEBAR: Spot Prices + Timespread Dashboard + Polymarket -->
         <div class="overview-left">
             <div class="panel">
                 <div class="panel-header">
@@ -52,7 +53,7 @@
 
             <div class="panel" style="margin-top:0.6rem;">
                 <div class="panel-header">
-                    <span class="panel-title">SPREAD DASHBOARD</span>
+                    <span class="panel-title">TIMESPREAD DASHBOARD</span>
                     <span class="panel-subtitle">Click to chart →</span>
                 </div>
                 <div class="panel-body" id="spread-dashboard"></div>
@@ -60,24 +61,7 @@
 
             <div class="panel" style="margin-top:0.6rem;">
                 <div class="panel-header">
-                    <span class="panel-title">KEY DATES</span>
-                    <span class="panel-subtitle">Calendar</span>
-                </div>
-                <div class="panel-body" id="key-dates"></div>
-            </div>
-
-            <div class="panel" style="margin-top:0.6rem;">
-                <div class="panel-header">
-                    <span class="panel-title">COFFEE NEWS</span>
-                </div>
-                <div class="panel-body news-list" id="news-list">
-                    <div class="loading">Loading…</div>
-                </div>
-            </div>
-
-            <div class="panel" style="margin-top:0.6rem;">
-                <div class="panel-header">
-                    <span class="panel-title">POLYMARKET — COFFEE</span>
+                    <span class="panel-title">POLYMARKET</span>
                 </div>
                 <div class="panel-body" id="polymarket-list">
                     <div class="loading">Loading…</div>
@@ -94,6 +78,10 @@
                         <span class="panel-title" id="price-evo-title">PRICE EVOLUTION</span>
                         <span class="panel-subtitle" id="price-evo-subtitle"> KC ARABICA // FRONT MONTH</span>
                     </div>
+                    <label style="font-size:0.65rem;color:var(--text-secondary);display:flex;align-items:center;gap:0.3rem;cursor:pointer;">
+                        <input type="checkbox" id="seasonal-toggle" style="accent-color:var(--accent);">
+                        5Y Seasonal
+                    </label>
                 </div>
                 <div class="panel-body">
                     <div class="horizon-bar">
@@ -108,12 +96,12 @@
                 </div>
             </div>
 
-            <!-- Calendar Spread + Term Structure side by side -->
+            <!-- Timespread + Term Structure side by side -->
             <div class="two-col" style="margin-top:0.8rem;">
                 <div class="panel">
                     <div class="panel-header">
                         <div>
-                            <span class="panel-title">CALENDAR SPREAD</span>
+                            <span class="panel-title">TIMESPREAD</span>
                             <span class="panel-subtitle" id="spread-chart-subtitle"> KC N-Z (Jul-Dec) // ¢/lb</span>
                         </div>
                         <select id="spread-select" style="min-width:140px;"></select>
@@ -137,6 +125,26 @@
                         <div id="chart-term-structure" class="chart-container"></div>
                     </div>
                     <div id="ts-date-tags" style="padding:0.3rem 0.8rem;"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- RIGHT SIDEBAR: News + Key Dates -->
+        <div class="overview-right">
+            <div class="panel">
+                <div class="panel-header">
+                    <span class="panel-title">KEY DATES</span>
+                    <span class="panel-subtitle">Economic Calendar</span>
+                </div>
+                <div class="panel-body" id="key-dates"></div>
+            </div>
+
+            <div class="panel" style="margin-top:0.6rem;">
+                <div class="panel-header">
+                    <span class="panel-title">COFFEE NEWS</span>
+                </div>
+                <div class="panel-body news-list" id="news-list">
+                    <div class="loading">Loading…</div>
                 </div>
             </div>
         </div>
@@ -266,6 +274,13 @@
     </div>
 </div>
 
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- OPTIONS TAB                                                            -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div id="tab-options" class="tab-panel">
+    <div id="options-container"></div>
+</div>
+
 </div><!-- main-content -->
 
 <!-- ═══════════════════════════════════════════════════════════════════════ -->
@@ -278,5 +293,6 @@
 
 <script src="coffee-data.js"></script>
 <script src="coffee-markets.js"></script>
+<script src="coffee-options.js"></script>
 </body>
 </html>
