@@ -103,42 +103,41 @@
                         <button class="horizon-btn" data-horizon="YTD">YTD</button>
                         <button class="horizon-btn active" data-horizon="1Y">1Y</button>
                         <button class="horizon-btn" data-horizon="5Y">5Y</button>
-                        <button class="horizon-btn" data-horizon="10Y">10Y</button>
                     </div>
                     <div id="chart-price-evolution" class="chart-container"></div>
                 </div>
             </div>
 
-            <!-- Calendar Spread -->
-            <div class="panel" style="margin-top:0.8rem;">
-                <div class="panel-header">
-                    <div>
-                        <span class="panel-title">CALENDAR SPREAD</span>
-                        <span class="panel-subtitle" id="spread-chart-subtitle"> KC N-Z (Jul-Dec) // ¢/lb</span>
+            <!-- Calendar Spread + Term Structure side by side -->
+            <div class="two-col" style="margin-top:0.8rem;">
+                <div class="panel">
+                    <div class="panel-header">
+                        <div>
+                            <span class="panel-title">CALENDAR SPREAD</span>
+                            <span class="panel-subtitle" id="spread-chart-subtitle"> KC N-Z (Jul-Dec) // ¢/lb</span>
+                        </div>
+                        <select id="spread-select" style="min-width:140px;"></select>
                     </div>
-                    <select id="spread-select" style="min-width:140px;"></select>
-                </div>
-                <div class="panel-body-flush">
-                    <div id="chart-spread-monitor" class="chart-container"></div>
-                </div>
-            </div>
-
-            <!-- Term Structure -->
-            <div class="panel" style="margin-top:0.8rem;">
-                <div class="panel-header">
-                    <div>
-                        <span class="panel-title">FUTURES TERM STRUCTURE</span>
-                        <span class="panel-subtitle"> KC ARABICA // DELIVERY MONTH</span>
-                    </div>
-                    <div class="ts-controls">
-                        <input type="date" id="ts-compare-date" style="background:var(--bg-card);color:var(--text-primary);border:1px solid var(--border);border-radius:3px;padding:0.25rem 0.4rem;font-size:0.7rem;font-family:var(--font-sans);">
-                        <button class="btn-refresh" id="ts-add-date" style="padding:0.25rem 0.6rem;">ADD DATE</button>
+                    <div class="panel-body-flush">
+                        <div id="chart-spread-monitor" class="chart-container"></div>
                     </div>
                 </div>
-                <div class="panel-body-flush">
-                    <div id="chart-term-structure" class="chart-container"></div>
+                <div class="panel">
+                    <div class="panel-header">
+                        <div>
+                            <span class="panel-title">FUTURES TERM STRUCTURE</span>
+                            <span class="panel-subtitle"> KC ARABICA // DELIVERY MONTH</span>
+                        </div>
+                        <div class="ts-controls">
+                            <input type="date" id="ts-compare-date" style="background:var(--bg-card);color:var(--text-primary);border:1px solid var(--border);border-radius:3px;padding:0.25rem 0.4rem;font-size:0.7rem;font-family:var(--font-sans);">
+                            <button class="btn-refresh" id="ts-add-date" style="padding:0.25rem 0.6rem;">ADD DATE</button>
+                        </div>
+                    </div>
+                    <div class="panel-body-flush">
+                        <div id="chart-term-structure" class="chart-container"></div>
+                    </div>
+                    <div id="ts-date-tags" style="padding:0.3rem 0.8rem;"></div>
                 </div>
-                <div id="ts-date-tags" style="padding:0.3rem 0.8rem;"></div>
             </div>
         </div>
     </div>

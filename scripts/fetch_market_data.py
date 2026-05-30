@@ -713,9 +713,22 @@ def fetch_news() -> list[dict]:
 
 
 def fetch_polymarket() -> list[dict]:
-    print("  Fetching Polymarket coffee markets…")
+    print("  Fetching Polymarket coffee & climate markets…")
     markets = []
-    for term in ["coffee", "arabica", "coffee price"]:
+
+    coffee_terms = ["coffee", "arabica", "coffee price"]
+    climate_terms = [
+        "hottest", "La Nina", "El Nino", "NOAA temperature",
+        "global temperature record", "warmest", "climate record",
+    ]
+
+    coffee_keywords = ["coffee", "arabica", "robusta", "cafe", "café"]
+    climate_keywords = [
+        "hottest", "warmest", "temperature", "el nino", "el niño",
+        "la nina", "la niña", "noaa", "climate", "record heat",
+    ]
+
+    for term in coffee_terms + climate_terms:
         try:
             r = requests.get("https://gamma-api.polymarket.com/markets", params={
                 "limit": 10, "active": "true", "closed": "false", "query": term,
@@ -730,8 +743,12 @@ def fetch_polymarket() -> list[dict]:
                 if not q:
                     continue
                 ql = q.lower()
-                if not any(k in ql for k in ["coffee", "arabica", "robusta", "cafe", "café"]):
+
+                is_coffee = any(k in ql for k in coffee_keywords)
+                is_climate = any(k in ql for k in climate_keywords)
+                if not is_coffee and not is_climate:
                     continue
+
                 slug = m.get("slug", "")
                 outcomes = m.get("outcomePrices", "")
                 if isinstance(outcomes, str):
@@ -756,6 +773,7 @@ def fetch_polymarket() -> list[dict]:
                     "volume": vol,
                     "url": f"https://polymarket.com/event/{slug}" if slug else "",
                     "end_date": end[:10] if end else "",
+                    "category": "coffee" if is_coffee else "climate",
                 })
         except Exception:
             continue
@@ -767,7 +785,7 @@ def fetch_polymarket() -> list[dict]:
             seen.add(m["question"])
             unique.append(m)
     unique.sort(key=lambda x: x.get("volume", 0), reverse=True)
-    return unique[:10]
+    return unique[:15]
 
 
 # ── Simulated data for briques without free API ─────────────────────────────

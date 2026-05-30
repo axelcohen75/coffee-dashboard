@@ -6,7 +6,7 @@
 let DATA = null;
 let tsCompareDates = [];
 let activeSpread = null;
-let selectedAssets = ['kc'];  // multi-select for price chart
+let selectedAssets = ['kc'];
 
 async function init() {
     try {
@@ -66,7 +66,8 @@ function renderOverview() {
 function getAssetData(key) {
     const f = DATA.futures;
     if (key === 'kc') return { label: 'KC Arabica', price: f.kc.front, unit: '¢/lb', history: f.kc.history, color: COLORS.accent };
-    if (key === 'rc') return { label: 'Robusta', price: f.rc.front, unit: '$/t', history: f.rc.history, color: COLORS.blue };
+    if (key === 'rc') return { label: 'RC Robusta', price: f.rc.front, unit: '$/t', history: f.rc.history, color: COLORS.blue };
+    if (key === 'rc_cl') return { label: 'RC (¢/lb)', price: f.rc.front_cents_lb, unit: '¢/lb', history: f.rc.history_cents_lb, color: '#6BA3BE' };
     if (key === 'arb_rob') return { label: 'Arb-Rob Spread', price: f.arb_rob?.current, unit: '¢/lb', history: f.arb_rob?.history, color: COLORS.orange };
     return null;
 }
@@ -93,7 +94,8 @@ function renderSpotPrices() {
     const el = document.getElementById('spot-prices');
     const assets = [
         { key: 'kc', label: 'KC Arabica' },
-        { key: 'rc', label: 'Robusta' },
+        { key: 'rc', label: 'RC Robusta' },
+        { key: 'rc_cl', label: 'RC (¢/lb equiv.)' },
         { key: 'arb_rob', label: 'Arb-Rob Spread' },
     ];
 
@@ -105,14 +107,15 @@ function renderSpotPrices() {
     for (const asset of assets) {
         const data = getAssetData(asset.key);
         if (!data || data.price == null) continue;
+        const canSelect = ['kc', 'rc', 'arb_rob'].includes(asset.key);
         const sel = selectedAssets.includes(asset.key) ? ' selected' : '';
         const perf1m = computePerf(data.history, 30);
         const perfYtd = computeYTDPerf(data.history);
 
         html += `
-        <div class="spot-row${sel}" onclick="toggleAsset('${asset.key}')">
+        <div class="spot-row${sel}" ${canSelect ? `onclick="toggleAsset('${asset.key}')" style="cursor:pointer"` : 'style="cursor:default;opacity:0.7"'}>
             <div class="spot-indicator" style="background:${data.color}"></div>
-            <span class="spot-name">${data.label}</span>
+            <span class="spot-name">${asset.label}</span>
             <span class="spot-price">${fmtNum(data.price, data.unit === '$/t' ? 0 : 2)}</span>
             <span class="spot-unit">${data.unit}</span>
             <span class="spot-perf ${pctClass(perf1m)}">${fmtPct(perf1m)}</span>
@@ -165,12 +168,9 @@ function renderPriceEvolution(horizon) {
             y: yVals,
             name: asset.label,
             line: { color: asset.color, width: 2 },
-            fill: selectedAssets.length === 1 ? 'tozeroy' : undefined,
-            fillcolor: selectedAssets.length === 1 ? asset.color.replace(')', ',0.06)').replace('rgb', 'rgba') : undefined,
         });
     }
 
-    // Update title
     const titleEl = document.getElementById('price-evo-title');
     const subtitleEl = document.getElementById('price-evo-subtitle');
     if (multiMode) {
@@ -321,10 +321,19 @@ function clearTsDates() {
 
 // ── Spread Monitor with dropdown ────────────────────────────────────────
 
+const SPREAD_DETAILS = {
+    arb_rob: { label: 'Arb-Rob Spread', desc: 'KC Arabica − RC Robusta (¢/lb)', months: '' },
+    kn: { label: 'KC K-N', desc: 'May → Jul', months: 'Old crop vs new crop transition' },
+    nz: { label: 'KC N-Z', desc: 'Jul → Dec', months: 'Harvest pressure gauge' },
+    zh: { label: 'KC Z-H', desc: 'Dec → Mar', months: 'Inter-crop carry' },
+    hk: { label: 'KC H-K', desc: 'Mar → May', months: 'Pre-harvest tightness' },
+};
+
 function setupSpreadDropdown() {
     const sel = document.getElementById('spread-select');
     let html = '<option value="arb_rob">Arb-Rob Spread</option>';
     for (const def of SPREAD_DEFS) {
+        const detail = SPREAD_DETAILS[def.key] || {};
         html += `<option value="${def.key}">${def.label} (${def.desc})</option>`;
     }
     sel.innerHTML = html;
@@ -357,8 +366,9 @@ function renderSpreadMonitor(spreadKey) {
             chartEl.innerHTML = '<div class="loading">No data for this spread</div>';
             return;
         }
+        const detail = SPREAD_DETAILS[spreadKey] || {};
         renderSpreadChart(sp.history, sp.mean, sp.current, sp.label);
-        if (subtitleEl) subtitleEl.textContent = ` ${sp.label} // ¢/lb`;
+        if (subtitleEl) subtitleEl.textContent = ` ${sp.label} — ${detail.months || ''} // ¢/lb`;
     }
 }
 
@@ -401,7 +411,10 @@ function renderSpreadDashboard() {
     if (arb && arb.current != null) {
         const cls = arb.current >= 0 ? 'up' : 'down';
         html += `<div class="spread-item${activeSpread === 'arb_rob' ? ' active' : ''}" onclick="selectSpread('arb_rob')">
-            <span class="spread-label">Arb-Rob</span>
+            <div>
+                <span class="spread-label" style="font-weight:600;">Arb-Rob</span>
+                <div style="font-size:0.6rem;color:var(--text-muted);">KC − RC premium</div>
+            </div>
             <span class="spread-value ${cls}">${arb.current >= 0 ? '+' : ''}${fmtNum(arb.current)} ¢/lb</span>
         </div>`;
     }
@@ -410,9 +423,16 @@ function renderSpreadDashboard() {
         const sp = DATA.spreads?.[def.key];
         if (!sp) continue;
         const cls = sp.current >= 0 ? 'up' : 'down';
+        const detail = SPREAD_DETAILS[def.key] || {};
+        const meanDiff = sp.mean != null ? (sp.current - sp.mean) : null;
+        const meanTag = meanDiff != null ? `<span style="font-size:0.55rem;color:${meanDiff >= 0 ? 'var(--green)' : 'var(--red)'}">${meanDiff >= 0 ? '+' : ''}${fmtNum(meanDiff)} vs avg</span>` : '';
         html += `<div class="spread-item${activeSpread === def.key ? ' active' : ''}" onclick="selectSpread('${def.key}')">
-            <span class="spread-label">${def.label}</span>
-            <span class="spread-value ${cls}">${sp.current >= 0 ? '+' : ''}${fmtNum(sp.current)} ¢/lb</span>
+            <div>
+                <span class="spread-label" style="font-weight:600;">${def.label}</span>
+                <span style="font-size:0.6rem;color:var(--text-muted);margin-left:0.3rem;">${detail.desc || def.desc}</span>
+                <div style="font-size:0.55rem;color:var(--text-muted);">${detail.months || ''} ${meanTag}</div>
+            </div>
+            <span class="spread-value ${cls}">${sp.current >= 0 ? '+' : ''}${fmtNum(sp.current)}</span>
         </div>`;
     }
 
@@ -422,13 +442,12 @@ function renderSpreadDashboard() {
 function selectSpread(key) {
     activeSpread = key;
     renderSpreadDashboard();
-    // Sync the dropdown
     const sel = document.getElementById('spread-select');
     if (sel) sel.value = key;
     renderSpreadMonitor(key);
 }
 
-// ── Key Dates Calendar ──────────────────────────────────────────────────
+// ── Key Dates Calendar (concise, economic calendar style) ────────────────
 
 function renderKeyDates() {
     const el = document.getElementById('key-dates');
@@ -436,69 +455,43 @@ function renderKeyDates() {
     const year = now.getFullYear();
 
     const keyDates = [
-        // CFTC COT — every Friday
-        ...getNextCOTDates(now, 4).map(d => ({
-            date: d, title: 'CFTC COT Report', tag: 'CFTC', tagClass: 'tag-cftc',
-        })),
-        // USDA WASDE — around 10th of each month
-        ...getNextWASDEDates(now, 3).map(d => ({
-            date: d, title: 'USDA WASDE Report', tag: 'USDA', tagClass: 'tag-usda',
-        })),
-        // ICE certified stocks — daily (show next 2 business days)
-        ...getNextBusinessDays(now, 2).map(d => ({
-            date: d, title: 'ICE Certified Stock Update', tag: 'ICE', tagClass: 'tag-ice',
-        })),
-        // Brazil frost season
-        { date: new Date(year, 5, 1), title: 'Brazil Frost Season Begins', tag: 'WEATHER', tagClass: 'tag-weather' },
-        { date: new Date(year, 7, 31), title: 'Brazil Frost Season Ends', tag: 'WEATHER', tagClass: 'tag-weather' },
-        // Brazil harvest
-        { date: new Date(year, 4, 1), title: 'Brazil Arabica Harvest Starts', tag: 'BRAZIL', tagClass: 'tag-brazil' },
-        { date: new Date(year, 8, 30), title: 'Brazil Arabica Harvest Ends', tag: 'BRAZIL', tagClass: 'tag-brazil' },
-        // ICO monthly report — mid month
-        ...getNextICODates(now, 2).map(d => ({
-            date: d, title: 'ICO Monthly Coffee Report', tag: 'ICO', tagClass: 'tag-ico',
-        })),
-        // KC contract expirations
-        { date: new Date(year, 6, 21), title: 'KC Jul (N) Contract Expiry', tag: 'ICE', tagClass: 'tag-ice' },
-        { date: new Date(year, 8, 18), title: 'KC Sep (U) Contract Expiry', tag: 'ICE', tagClass: 'tag-ice' },
-        { date: new Date(year, 11, 18), title: 'KC Dec (Z) Contract Expiry', tag: 'ICE', tagClass: 'tag-ice' },
-        { date: new Date(year + 1, 2, 20), title: 'KC Mar (H) Contract Expiry', tag: 'ICE', tagClass: 'tag-ice' },
-        // Brazil flowering
-        { date: new Date(year, 8, 15), title: 'Brazil Flowering Season Begins', tag: 'WEATHER', tagClass: 'tag-weather' },
+        ...getNextCOTDates(now, 3).map(d => ({ date: d, title: 'CFTC COT Report', tag: 'CFTC', tagClass: 'tag-cftc', freq: 'Weekly Fri' })),
+        ...getNextWASDEDates(now, 2).map(d => ({ date: d, title: 'USDA WASDE', tag: 'USDA', tagClass: 'tag-usda', freq: '' })),
+        ...getNextICODates(now, 2).map(d => ({ date: d, title: 'ICO Monthly Report', tag: 'ICO', tagClass: 'tag-ico', freq: '' })),
+        { date: new Date(year, 5, 1), title: 'Frost Season Begins', tag: 'WEATHER', tagClass: 'tag-weather', freq: '' },
+        { date: new Date(year, 7, 31), title: 'Frost Season Ends', tag: 'WEATHER', tagClass: 'tag-weather', freq: '' },
+        { date: new Date(year, 4, 1), title: 'Arabica Harvest Start', tag: 'BRAZIL', tagClass: 'tag-brazil', freq: '' },
+        { date: new Date(year, 8, 30), title: 'Arabica Harvest End', tag: 'BRAZIL', tagClass: 'tag-brazil', freq: '' },
+        { date: new Date(year, 6, 21), title: 'KC N Expiry', tag: 'ICE', tagClass: 'tag-ice', freq: '' },
+        { date: new Date(year, 8, 18), title: 'KC U Expiry', tag: 'ICE', tagClass: 'tag-ice', freq: '' },
+        { date: new Date(year, 11, 18), title: 'KC Z Expiry', tag: 'ICE', tagClass: 'tag-ice', freq: '' },
+        { date: new Date(year + 1, 2, 20), title: 'KC H Expiry', tag: 'ICE', tagClass: 'tag-ice', freq: '' },
+        { date: new Date(year, 8, 15), title: 'Flowering Season', tag: 'WEATHER', tagClass: 'tag-weather', freq: '' },
     ];
 
-    // Filter future dates, sort, take next 10
     const upcoming = keyDates
         .filter(d => d.date >= new Date(now.getFullYear(), now.getMonth(), now.getDate()))
         .sort((a, b) => a.date - b.date)
-        .slice(0, 10);
+        .slice(0, 8);
 
     if (!upcoming.length) {
         el.innerHTML = '<div style="color:var(--text-muted);font-size:0.75rem;">No upcoming dates.</div>';
         return;
     }
 
-    let html = '';
+    let html = '<table style="width:100%;border-collapse:collapse;">';
     for (const item of upcoming) {
         const d = item.date;
-        const dayNum = d.getDate();
         const month = MONTHS[d.getMonth()];
-        const isToday = d.toDateString() === now.toDateString();
-        const isTomorrow = d.toDateString() === new Date(now.getTime() + 86400000).toDateString();
-        const dayLabel = isToday ? 'TODAY' : isTomorrow ? 'TMRW' : '';
-
-        html += `<div class="key-date-item">
-            <div class="key-date-day">
-                <div class="key-date-day-num" ${isToday ? 'style="color:var(--accent)"' : ''}>${dayNum}</div>
-                <div class="key-date-day-month">${month}</div>
-            </div>
-            <div class="key-date-info">
-                <span class="key-date-title">${item.title}</span>
-                <span class="key-date-tag ${item.tagClass}">${item.tag}</span>
-                ${dayLabel ? `<span style="font-size:0.55rem;color:var(--accent);font-weight:700;margin-left:0.3rem;">${dayLabel}</span>` : ''}
-            </div>
-        </div>`;
+        const day = d.getDate();
+        html += `<tr style="border-bottom:1px solid rgba(30,42,58,0.4);">
+            <td style="padding:0.3rem 0.4rem;white-space:nowrap;font-size:0.72rem;color:var(--text-secondary);">${month} ${day}</td>
+            <td style="padding:0.3rem 0.2rem;"><span class="key-date-tag ${item.tagClass}">${item.tag}</span></td>
+            <td style="padding:0.3rem 0.2rem;font-size:0.72rem;color:var(--text-primary);">${item.title}</td>
+            <td style="padding:0.3rem 0.2rem;font-size:0.6rem;color:var(--text-muted);text-align:right;">${item.freq}</td>
+        </tr>`;
     }
+    html += '</table>';
     el.innerHTML = html;
 }
 
@@ -518,21 +511,10 @@ function getNextWASDEDates(from, count) {
     let year = from.getFullYear();
     for (let i = 0; i < count + 2; i++) {
         const candidate = new Date(year, month + i, 12);
-        // adjust to nearest weekday
         if (candidate.getDay() === 0) candidate.setDate(13);
         if (candidate.getDay() === 6) candidate.setDate(14);
         if (candidate >= from) dates.push(candidate);
         if (dates.length >= count) break;
-    }
-    return dates;
-}
-
-function getNextBusinessDays(from, count) {
-    const dates = [];
-    let d = new Date(from);
-    while (dates.length < count) {
-        d = new Date(d.getTime() + 86400000);
-        if (d.getDay() >= 1 && d.getDay() <= 5) dates.push(new Date(d));
     }
     return dates;
 }
@@ -597,16 +579,19 @@ function renderPolymarket() {
 
     if (!markets.length) {
         el.innerHTML = `<div class="poly-card">
-            <div class="poly-question">No active coffee prediction markets found on Polymarket.</div>
-            <div class="poly-vol">Markets will appear here when available.</div>
+            <div class="poly-question">No active coffee or climate prediction markets found on Polymarket.</div>
+            <div class="poly-vol">Coffee & climate markets will appear here when available.</div>
         </div>`;
         return;
     }
 
     let html = '';
-    for (const m of markets.slice(0, 5)) {
+    for (const m of markets.slice(0, 8)) {
+        const catBadge = m.category === 'climate'
+            ? '<span style="font-size:0.55rem;padding:1px 4px;border-radius:2px;background:rgba(231,111,81,0.15);color:var(--red);font-weight:700;margin-right:0.3rem;">CLIMATE</span>'
+            : '<span style="font-size:0.55rem;padding:1px 4px;border-radius:2px;background:rgba(0,212,170,0.15);color:var(--green);font-weight:700;margin-right:0.3rem;">COFFEE</span>';
         html += `<div class="poly-card">
-            <div class="poly-question">${escHtml(m.question.slice(0, 120))}</div>
+            <div class="poly-question">${catBadge}${escHtml(m.question.slice(0, 120))}</div>
             <div class="poly-stats">
                 <span class="poly-yes">YES ${m.yes_pct != null ? m.yes_pct.toFixed(0) + '%' : '—'}</span>
                 <span class="poly-vol">Vol: $${fmtInt(m.volume)} · ${m.end_date || '—'}</span>
@@ -849,14 +834,14 @@ function renderWeather() {
 
     let alerts = [];
     for (const [zone, info] of Object.entries(w)) {
-        if (info.frost_alert) alerts.push({ type: 'danger', text: `🥶 FROST ALERT: ${zone} — Min ${info.min_temp_7d}°C (7d)` });
-        if (info.drought_alert) alerts.push({ type: 'warning', text: `🏜 DROUGHT: ${zone} — Index ${info.drought_index} (90d)` });
+        if (info.frost_alert) alerts.push({ type: 'danger', text: `FROST ALERT: ${zone} — Min ${info.min_temp_7d}°C (7d)` });
+        if (info.drought_alert) alerts.push({ type: 'warning', text: `DROUGHT: ${zone} — Index ${info.drought_index} (90d)` });
     }
     const alertEl = document.getElementById('weather-alerts');
     if (alerts.length) {
         alertEl.innerHTML = alerts.map(a => `<div class="alert alert-${a.type}">${a.text}</div>`).join('');
     } else {
-        alertEl.innerHTML = '<div class="alert alert-ok">✓ No active weather alerts across monitored zones</div>';
+        alertEl.innerHTML = '<div class="alert alert-ok">No active weather alerts across monitored zones</div>';
     }
 
     let kpiHtml = '';
@@ -1013,9 +998,9 @@ function renderPositioning() {
 
     const sigEl = document.getElementById('pos-signal');
     if (z > 2) {
-        sigEl.innerHTML = '<div class="alert alert-warning">⚠ Specs très longs (Z > +2σ) — Signal contrarian de correction potentielle</div>';
+        sigEl.innerHTML = '<div class="alert alert-warning">Specs very long (Z > +2σ) — Contrarian correction signal</div>';
     } else if (z < -2) {
-        sigEl.innerHTML = '<div class="alert alert-ok">ℹ Specs très shorts (Z < −2σ) — Signal contrarian de rebond potentiel</div>';
+        sigEl.innerHTML = '<div class="alert alert-ok">Specs very short (Z < −2σ) — Contrarian bounce signal</div>';
     } else {
         sigEl.innerHTML = '';
     }
@@ -1097,7 +1082,7 @@ function getCutoffDate(horizon) {
     const now = new Date();
     const map = {
         '1D': 5, '1W': 7, '1M': 30, '3M': 90, '6M': 180,
-        'YTD': null, '1Y': 365, '5Y': 1825, '10Y': 3650,
+        'YTD': null, '1Y': 365, '5Y': 1825,
     };
     if (horizon === 'YTD') {
         return `${now.getFullYear()}-01-01`;
