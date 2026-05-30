@@ -633,10 +633,13 @@ def fetch_news() -> list[dict]:
     from email.utils import parsedate_to_datetime
 
     feeds = [
-        "https://news.google.com/rss/search?q=coffee+futures+price&hl=en-US&gl=US&ceid=US:en",
-        "https://news.google.com/rss/search?q=arabica+robusta+coffee+market&hl=en-US&gl=US&ceid=US:en",
-        "https://news.google.com/rss/search?q=brazil+coffee+crop+harvest&hl=en-US&gl=US&ceid=US:en",
-        "https://news.google.com/rss/search?q=ICE+coffee+commodity&hl=en-US&gl=US&ceid=US:en",
+        "https://news.google.com/rss/search?q=coffee+futures+price+when:7d&hl=en-US&gl=US&ceid=US:en",
+        "https://news.google.com/rss/search?q=arabica+robusta+coffee+market+when:7d&hl=en-US&gl=US&ceid=US:en",
+        "https://news.google.com/rss/search?q=brazil+coffee+crop+harvest+when:14d&hl=en-US&gl=US&ceid=US:en",
+        "https://news.google.com/rss/search?q=ICE+coffee+commodity+when:7d&hl=en-US&gl=US&ceid=US:en",
+        "https://news.google.com/rss/search?q=coffee+price+StoneX+ECOM+Sucafina+when:14d&hl=en-US&gl=US&ceid=US:en",
+        "https://news.google.com/rss/search?q=%22coffee+futures%22+when:3d&hl=en-US&gl=US&ceid=US:en",
+        "https://news.google.com/rss/search?q=cafe+arabica+robusta+prix+when:7d&hl=fr-FR&gl=FR&ceid=FR:fr",
     ]
 
     bull_words = [
@@ -697,7 +700,15 @@ def fetch_news() -> list[dict]:
         except Exception:
             continue
 
-    articles.sort(key=lambda x: x.get("published", ""), reverse=True)
+    # Sort by parsed date, most recent first
+    for a in articles:
+        try:
+            a["_ts"] = parsedate_to_datetime(a["published"]).timestamp()
+        except Exception:
+            a["_ts"] = 0
+    articles.sort(key=lambda x: x["_ts"], reverse=True)
+    for a in articles:
+        del a["_ts"]
     return articles[:20]
 
 

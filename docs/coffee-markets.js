@@ -4,6 +4,8 @@
  */
 
 let DATA = null;
+let tsCompareDates = [];  // term structure comparison dates
+let activeSpread = null;  // currently selected spread in dashboard
 
 async function init() {
     try {
@@ -31,7 +33,6 @@ function setupTabs() {
             tab.classList.add('active');
             const target = tab.dataset.tab;
             document.getElementById('tab-' + target).classList.add('active');
-            // Lazy render
             if (target === 'inventory' && !document.getElementById('tab-inventory').dataset.rendered) renderInventory();
             if (target === 'brazil' && !document.getElementById('tab-brazil').dataset.rendered) renderBrazil();
             if (target === 'differentials' && !document.getElementById('tab-differentials').dataset.rendered) renderDifferentials();
@@ -52,10 +53,10 @@ function renderOverview() {
     renderSpreadMonitor();
     renderCalendarSpread();
     renderNews();
-    renderPerformance();
     renderSpreadDashboard();
     renderPolymarket();
     setupHorizonButtons();
+    setupTermStructureCompare();
 }
 
 function renderSpotPrices() {
@@ -67,7 +68,6 @@ function renderSpotPrices() {
         { name: 'KC Arabica', price: f.kc.front, unit: '¢/lb', d1: f.kc.performance?.['1d'], m1: f.kc.performance?.['1m'] },
         { name: 'Robusta', price: f.rc.front, unit: '$/t', d1: f.rc.performance?.['1d'], m1: f.rc.performance?.['1m'] },
         { name: 'RC (¢/lb equiv.)', price: f.rc.front_cents_lb, unit: '¢/lb', d1: null, m1: null },
-        { name: 'HH Nat Gas', price: null, unit: '', d1: null, m1: null },  // placeholder
         { name: 'Arb-Rob Spread', price: f.arb_rob.current, unit: '¢/lb', d1: null, m1: null },
     ];
 
@@ -129,10 +129,10 @@ function renderPriceEvolution(horizon) {
     }), PLOTLY_CONFIG);
 }
 
+// ── Term Structure with date comparison ──────────────────────────────────
+
 function renderTermStructure() {
     const kc = DATA.forward_curve.kc;
-    const rc = DATA.forward_curve.rc;
-
     if (!kc || !kc.length) {
         document.getElementById('chart-term-structure').innerHTML =
             '<div class="loading">Forward curve not available</div>';
@@ -142,22 +142,27 @@ function renderTermStructure() {
     const traces = [{
         x: kc.map(d => d.contract),
         y: kc.map(d => d.price),
-        name: 'KC (¢/lb)',
+        name: 'KC (now)',
         mode: 'lines+markers',
-        line: { color: COLORS.accent, width: 2 },
+        line: { color: COLORS.accent, width: 2.5 },
         marker: { size: 7 },
     }];
 
-    if (rc && rc.length) {
-        traces.push({
-            x: rc.map(d => d.contract),
-            y: rc.map(d => d.price * 100 / 2204.62),
-            name: 'RC (¢/lb equiv.)',
-            mode: 'lines+markers',
-            line: { color: COLORS.blue, width: 2 },
-            marker: { size: 7 },
-        });
-    }
+    // Add comparison date traces
+    const compareColors = [COLORS.orange, COLORS.purple, COLORS.yellow, COLORS.red];
+    tsCompareDates.forEach((dateStr, i) => {
+        const curve = getHistoricalCurveAtDate(dateStr);
+        if (curve && curve.length) {
+            traces.push({
+                x: curve.map(d => d.contract),
+                y: curve.map(d => d.price),
+                name: `KC (${dateStr})`,
+                mode: 'lines+markers',
+                line: { color: compareColors[i % compareColors.length], width: 2, dash: 'dash' },
+                marker: { size: 6, symbol: 'diamond' },
+            });
+        }
+    });
 
     let titleText = 'Term Structure';
     if (kc.length >= 2) {
@@ -174,40 +179,143 @@ function renderTermStructure() {
     }), PLOTLY_CONFIG);
 }
 
-function renderSpreadMonitor() {
-    const arb = DATA.futures.arb_rob;
-    if (!arb || !arb.history || !arb.history.length) {
-        document.getElementById('chart-spread-monitor').innerHTML =
-            '<div class="loading">Arb-Rob spread requires RC data</div>';
+function getHistoricalCurveAtDate(dateStr) {
+    // Find the KC price on that date from history, then estimate curve
+    // by applying the current curve's shape (spread ratios) to the historical front price
+    const hist = DATA.futures.kc.history;
+    if (!hist || !hist.length) return null;
+
+    // Find closest date
+    let closest = null;
+    let minDiff = Infinity;
+    for (const pt of hist) {
+        const diff = Math.abs(new Date(pt.date) - new Date(dateStr));
+        if (diff < minDiff) {
+            minDiff = diff;
+            closest = pt;
+        }
+    }
+    if (!closest || minDiff > 7 * 86400000) return null;  // within 7 days
+
+    const currentCurve = DATA.forward_curve.kc;
+    if (!currentCurve || !currentCurve.length) return null;
+
+    const currentFront = currentCurve[0].price;
+    const histFront = closest.value;
+    const ratio = histFront / currentFront;
+
+    return currentCurve.map(pt => ({
+        contract: pt.contract,
+        price: Math.round(pt.price * ratio * 100) / 100,
+    }));
+}
+
+function setupTermStructureCompare() {
+    const addBtn = document.getElementById('ts-add-date');
+    const dateInput = document.getElementById('ts-compare-date');
+
+    // Default to 1 month ago
+    const defaultDate = new Date();
+    defaultDate.setMonth(defaultDate.getMonth() - 1);
+    dateInput.value = defaultDate.toISOString().slice(0, 10);
+
+    addBtn.addEventListener('click', () => {
+        const val = dateInput.value;
+        if (!val || tsCompareDates.includes(val)) return;
+        if (tsCompareDates.length >= 4) return;  // max 4 overlays
+        tsCompareDates.push(val);
+        renderTermStructure();
+        renderTsDateTags();
+    });
+}
+
+function renderTsDateTags() {
+    const el = document.getElementById('ts-date-tags');
+    if (!tsCompareDates.length) {
+        el.innerHTML = '';
         return;
     }
+    const compareColors = [COLORS.orange, COLORS.purple, COLORS.yellow, COLORS.red];
+    let html = '';
+    tsCompareDates.forEach((d, i) => {
+        html += `<span class="ts-date-tag" style="border-color:${compareColors[i % compareColors.length]}">
+            <span style="color:${compareColors[i % compareColors.length]}">●</span>
+            KC ${d}
+            <span class="remove" onclick="removeTsDate(${i})">×</span>
+        </span> `;
+    });
+    html += `<span class="remove" onclick="clearTsDates()" style="font-size:0.65rem;color:var(--text-muted);cursor:pointer;text-decoration:underline;">Clear all</span>`;
+    el.innerHTML = html;
+}
 
-    const h = arb.history;
-    const mean = arb.mean;
-    const current = arb.current;
+function removeTsDate(idx) {
+    tsCompareDates.splice(idx, 1);
+    renderTermStructure();
+    renderTsDateTags();
+}
 
+function clearTsDates() {
+    tsCompareDates = [];
+    renderTermStructure();
+    renderTsDateTags();
+}
+
+// ── Spread Monitor (updates when dashboard item clicked) ─────────────────
+
+function renderSpreadMonitor(spreadKey) {
+    const chartEl = document.getElementById('chart-spread-monitor');
+
+    // Default: arb-rob, or the selected spread
+    if (!spreadKey || spreadKey === 'arb_rob') {
+        const arb = DATA.futures.arb_rob;
+        if (!arb || !arb.history || !arb.history.length) {
+            chartEl.innerHTML = '<div class="loading">Arb-Rob spread requires RC data</div>';
+            return;
+        }
+        renderSpreadChart(arb.history, arb.mean, arb.current, 'KC − RC Spread');
+
+        // Update the panel subtitle
+        const subtitle = chartEl.closest('.panel')?.querySelector('.panel-subtitle');
+        if (subtitle) subtitle.textContent = ' Arabica premium over Robusta // ¢/lb';
+    } else {
+        const sp = DATA.spreads?.[spreadKey];
+        if (!sp || !sp.history || !sp.history.length) {
+            chartEl.innerHTML = '<div class="loading">No data for this spread</div>';
+            return;
+        }
+        renderSpreadChart(sp.history, sp.mean, sp.current, sp.label);
+
+        const subtitle = chartEl.closest('.panel')?.querySelector('.panel-subtitle');
+        if (subtitle) subtitle.textContent = ` ${sp.label} // ¢/lb`;
+    }
+}
+
+function renderSpreadChart(history, mean, current, name) {
+    const h = history;
     const traces = [{
-        x: h.map(d => d.date),
-        y: h.map(d => d.value),
-        name: 'KC − RC Spread',
-        line: { color: COLORS.accent, width: 1.5 },
+        x: h.map(d => d.date), y: h.map(d => d.value),
+        name: name, line: { color: COLORS.accent, width: 1.5 },
     }];
 
-    const shapes = [{
-        type: 'line', y0: mean, y1: mean, x0: h[0].date, x1: h[h.length - 1].date,
-        line: { color: COLORS.red, dash: 'dash', width: 1.5 },
-    }];
+    const shapes = [];
+    const annotations = [];
+    if (mean != null) {
+        shapes.push({
+            type: 'line', y0: mean, y1: mean, x0: h[0].date, x1: h[h.length - 1].date,
+            line: { color: COLORS.red, dash: 'dash', width: 1.5 },
+        });
+        annotations.push({
+            x: h[h.length - 1].date, y: mean,
+            text: `Mean (${fmtNum(mean)})`, showarrow: false,
+            font: { color: COLORS.red, size: 9 }, xanchor: 'right', yanchor: 'bottom',
+        });
+    }
 
     Plotly.react('chart-spread-monitor', traces, mergeLayout({
         height: 310,
         title: { text: `Current: ${fmtNum(current)} ¢/lb`, font: { size: 11, color: COLORS.muted } },
         yaxis: { title: '¢/lb' },
-        shapes: shapes,
-        annotations: [{
-            x: h[h.length - 1].date, y: mean,
-            text: `Mean (${fmtNum(mean)})`, showarrow: false,
-            font: { color: COLORS.red, size: 9 }, xanchor: 'right', yanchor: 'bottom',
-        }],
+        shapes, annotations,
     }), PLOTLY_CONFIG);
 }
 
@@ -241,50 +349,49 @@ function renderCalendarSpread() {
     }), PLOTLY_CONFIG);
 }
 
+// ── News (sorted by recency) ─────────────────────────────────────────────
+
 function renderNews() {
     const el = document.getElementById('news-list');
-    const news = DATA.news || [];
+    let news = DATA.news || [];
     if (!news.length) { el.innerHTML = '<div class="news-item">No coffee news available.</div>'; return; }
 
+    // Parse and sort by actual date, most recent first
+    news = news.map(a => {
+        let ts = 0;
+        try { ts = new Date(a.published).getTime(); } catch(e) {}
+        return { ...a, _ts: ts };
+    }).sort((a, b) => b._ts - a._ts);
+
+    // Recompute ages from sorted dates
+    const now = Date.now();
+    news.forEach(a => {
+        if (a._ts > 0) {
+            const hrs = (now - a._ts) / 3600000;
+            a.age = hrs < 1 ? `${Math.floor(hrs * 60)}m ago` :
+                    hrs < 24 ? `${Math.floor(hrs)}h ago` :
+                    `${Math.floor(hrs / 24)}d ago`;
+        }
+    });
+
     let html = '';
-    for (const a of news.slice(0, 10)) {
+    for (const a of news.slice(0, 12)) {
+        const summary = a.summary.replace(/&nbsp;/g, ' ').replace(/<[^>]+>/g, '');
         html += `
         <div class="news-item">
             <div class="news-top">
                 <span class="sentiment-tag sentiment-${a.sentiment}">${a.sentiment}</span>
                 <span class="news-age">${a.age || ''}</span>
             </div>
-            <div class="news-title">${escHtml(a.title.slice(0, 95))}</div>
-            <div class="news-summary">${escHtml(a.summary.slice(0, 160))}…</div>
+            <div class="news-title">${escHtml(a.title.slice(0, 100))}</div>
+            <div class="news-summary">${escHtml(summary.slice(0, 180))}…</div>
             <a class="news-link" href="${a.url}" target="_blank" rel="noopener">READ ARTICLE →</a>
         </div>`;
     }
     el.innerHTML = html;
 }
 
-function renderPerformance() {
-    const el = document.getElementById('performance-table');
-    const perfs = [
-        { name: 'KC Arabica', p: DATA.futures.kc.performance },
-        { name: 'RC Robusta', p: DATA.futures.rc.performance },
-    ];
-
-    let html = '';
-    for (const { name, p } of perfs) {
-        if (!p || !p.price) continue;
-        html += `<div class="section-header" style="margin-top:0.8rem">${name}</div>`;
-        html += '<div class="perf-row">';
-        for (const k of ['1d', '1m', 'ytd', '1y']) {
-            const v = p[k];
-            html += `<div class="perf-cell">
-                <div class="perf-label">${k.toUpperCase()}</div>
-                <div class="perf-val ${pctClass(v)}">${fmtPct(v)}</div>
-            </div>`;
-        }
-        html += '</div>';
-    }
-    el.innerHTML = html;
-}
+// ── Spread Dashboard (clickable → updates spread monitor) ────────────────
 
 function renderSpreadDashboard() {
     const el = document.getElementById('spread-dashboard');
@@ -293,7 +400,7 @@ function renderSpreadDashboard() {
     const arb = DATA.futures.arb_rob;
     if (arb && arb.current != null) {
         const cls = arb.current >= 0 ? 'up' : 'down';
-        html += `<div class="spread-item">
+        html += `<div class="spread-item${activeSpread === 'arb_rob' ? ' active' : ''}" data-spread="arb_rob" onclick="selectSpread('arb_rob')">
             <span class="spread-label">Arb-Rob</span>
             <span class="spread-value ${cls}">${arb.current >= 0 ? '+' : ''}${fmtNum(arb.current)} ¢/lb</span>
         </div>`;
@@ -303,13 +410,19 @@ function renderSpreadDashboard() {
         const sp = DATA.spreads?.[def.key];
         if (!sp) continue;
         const cls = sp.current >= 0 ? 'up' : 'down';
-        html += `<div class="spread-item">
+        html += `<div class="spread-item${activeSpread === def.key ? ' active' : ''}" data-spread="${def.key}" onclick="selectSpread('${def.key}')">
             <span class="spread-label">${def.label}</span>
             <span class="spread-value ${cls}">${sp.current >= 0 ? '+' : ''}${fmtNum(sp.current)} ¢/lb</span>
         </div>`;
     }
 
     el.innerHTML = html || '<div style="color:var(--text-muted);font-size:0.75rem;">No spread data available.</div>';
+}
+
+function selectSpread(key) {
+    activeSpread = key;
+    renderSpreadDashboard();  // re-render to update .active class
+    renderSpreadMonitor(key);  // update the chart
 }
 
 function renderPolymarket() {
@@ -356,7 +469,6 @@ function renderInventory() {
     const s = DATA.stocks;
     if (!s) return;
 
-    // KPIs
     const arab = s.arabica;
     const rob = s.robusta;
     const arabVar = arab.current - arab.one_month_ago;
@@ -380,7 +492,6 @@ function renderInventory() {
             <div class="kpi-value">${daysCons} days</div>
         </div>`;
 
-    // Arabica stocks chart
     const ah = arab.history;
     Plotly.react('chart-inv-arabica', [{
         x: ah.map(d => d.date), y: ah.map(d => d.value),
@@ -388,7 +499,6 @@ function renderInventory() {
         fill: 'tozeroy', fillcolor: 'rgba(0,212,170,0.06)',
     }], mergeLayout({ height: 350, yaxis: { title: 'bags (60kg)' } }), PLOTLY_CONFIG);
 
-    // Port breakdown
     const ports = s.ports;
     const portNames = Object.keys(ports).sort((a, b) => ports[b] - ports[a]);
     Plotly.react('chart-inv-ports', [{
@@ -399,7 +509,6 @@ function renderInventory() {
         textposition: 'auto',
     }], mergeLayout({ height: 350, margin: { l: 100 } }), PLOTLY_CONFIG);
 
-    // Robusta
     const rh = rob.history;
     Plotly.react('chart-inv-robusta', [{
         x: rh.map(d => d.date), y: rh.map(d => d.value),
@@ -445,7 +554,6 @@ function renderBrazil() {
             <div class="kpi-value">${parity ? 'R$ ' + fmtNum(parity, 0) + '/saca' : '—'}</div>
         </div>`;
 
-    // Parity history
     if (b.parity_history && b.parity_history.length) {
         const ph = b.parity_history;
         Plotly.react('chart-brazil-parity', [{
@@ -459,7 +567,6 @@ function renderBrazil() {
         }), PLOTLY_CONFIG);
     }
 
-    // FX history
     if (b.fx_history && b.fx_history.length) {
         const fh = b.fx_history;
         Plotly.react('chart-brazil-fx', [{
@@ -472,7 +579,6 @@ function renderBrazil() {
         }), PLOTLY_CONFIG);
     }
 
-    // Sensitivity matrix
     if (b.sensitivity && b.sensitivity.length) {
         const sens = b.sensitivity;
         const el = document.getElementById('brazil-sensitivity');
@@ -504,7 +610,6 @@ function renderDifferentials() {
     const d = DATA.differentials;
     if (!d || !d.origins) return;
 
-    // KPIs
     let kpiHtml = '';
     for (const [name, info] of Object.entries(d.origins)) {
         const zCls = Math.abs(info.zscore_2y) > 2 ? 'down' : Math.abs(info.zscore_2y) > 1 ? 'neutral' : 'up';
@@ -517,7 +622,6 @@ function renderDifferentials() {
     }
     document.getElementById('diff-kpis').innerHTML = kpiHtml;
 
-    // Time series
     const traces = [];
     for (const [name, info] of Object.entries(d.origins)) {
         if (!info.history || !info.history.length) continue;
@@ -536,10 +640,7 @@ function renderDifferentials() {
             line: { color: 'rgba(200,200,200,0.2)', width: 1 } }],
     }), PLOTLY_CONFIG);
 
-    // Heatmap — first origin
     renderDiffHeatmap(Object.keys(d.origins)[0]);
-
-    // Setup selector
     const sel = document.getElementById('diff-origin-select');
     sel.innerHTML = Object.keys(d.origins).map(n => `<option value="${n}">${n}</option>`).join('');
     sel.addEventListener('change', () => renderDiffHeatmap(sel.value));
@@ -558,9 +659,7 @@ function renderDiffHeatmap(originName) {
     );
 
     Plotly.react('chart-diff-heatmap', [{
-        z: zData,
-        x: MONTHS,
-        y: years.map(String),
+        z: zData, x: MONTHS, y: years.map(String),
         type: 'heatmap',
         colorscale: [[0, '#264653'], [0.5, '#2A9D8F'], [1, '#E76F51']],
         text: zData.map(row => row.map(v => v != null ? v.toFixed(1) : '')),
@@ -582,7 +681,6 @@ function renderWeather() {
     const w = DATA.weather;
     if (!w) return;
 
-    // Alerts
     let alerts = [];
     for (const [zone, info] of Object.entries(w)) {
         if (info.frost_alert) alerts.push({ type: 'danger', text: `🥶 FROST ALERT: ${zone} — Min ${info.min_temp_7d}°C (7d)` });
@@ -595,7 +693,6 @@ function renderWeather() {
         alertEl.innerHTML = '<div class="alert alert-ok">✓ No active weather alerts across monitored zones</div>';
     }
 
-    // Zone KPIs
     let kpiHtml = '';
     for (const [zone, info] of Object.entries(w)) {
         if (info.error) continue;
@@ -613,16 +710,12 @@ function renderWeather() {
     }
     document.getElementById('weather-kpis').innerHTML = kpiHtml;
 
-    // Zone selector & charts
     const sel = document.getElementById('weather-zone-select');
     sel.innerHTML = Object.keys(w).map(z => `<option value="${z}">${z}</option>`).join('');
     renderWeatherZone(Object.keys(w)[0]);
     sel.addEventListener('change', () => renderWeatherZone(sel.value));
 
-    // Phenology
     renderPhenology();
-
-    // Map
     renderWeatherMap();
 }
 
@@ -632,7 +725,6 @@ function renderWeatherZone(zone) {
 
     const rd = info.recent_data;
 
-    // Temperature chart
     Plotly.react('chart-weather-temp', [
         { x: rd.map(d => d.date), y: rd.map(d => d.tmax), name: 'T max', line: { color: COLORS.red, width: 1.5 } },
         { x: rd.map(d => d.date), y: rd.map(d => d.tmin), name: 'T min', line: { color: COLORS.blue, width: 1.5 },
@@ -645,7 +737,6 @@ function renderWeatherZone(zone) {
             line: { color: COLORS.red, dash: 'dash', width: 1 } }],
     }), PLOTLY_CONFIG);
 
-    // Precipitation chart
     const cumPrecip = [];
     let cumSum = 0;
     for (const d of rd) { cumSum += (d.precip || 0); cumPrecip.push(cumSum); }
@@ -679,8 +770,7 @@ function renderWeatherMap() {
             text: [`<b>${zone}</b><br>Precip: ${info.precip_anomaly_pct}%<br>Min: ${info.min_temp_7d}°C`],
             hoverinfo: 'text',
             marker: { size: 16, color: color, opacity: 0.8, line: { width: 2, color: '#fff' } },
-            name: zone,
-            showlegend: false,
+            name: zone, showlegend: false,
         });
     }
 
@@ -734,7 +824,6 @@ function renderPositioning() {
         return;
     }
 
-    // KPIs
     const z = c.current_zscore;
     const zCls = Math.abs(z) > 2 ? 'down' : Math.abs(z) > 1 ? 'neutral' : 'up';
 
@@ -756,7 +845,6 @@ function renderPositioning() {
             <div class="kpi-value">${fmtInt(c.current_oi)} lots</div>
         </div>`;
 
-    // Signal
     const sigEl = document.getElementById('pos-signal');
     if (z > 2) {
         sigEl.innerHTML = '<div class="alert alert-warning">⚠ Specs très longs (Z > +2σ) — Signal contrarian de correction potentielle</div>';
@@ -766,7 +854,6 @@ function renderPositioning() {
         sigEl.innerHTML = '';
     }
 
-    // MM Net chart
     const h = c.history;
     Plotly.react('chart-pos-mm', [
         { x: h.map(d => d.date), y: h.map(d => d.mm_long), name: 'MM Longs', type: 'bar',
@@ -780,7 +867,6 @@ function renderPositioning() {
         title: { text: 'Managed Money — Net Position (lots)', font: { size: 12, color: COLORS.muted } },
     }), PLOTLY_CONFIG);
 
-    // Commercials
     Plotly.react('chart-pos-comm', [{
         x: h.map(d => d.date), y: h.map(d => d.prod_net),
         name: 'Commercials Net', line: { color: COLORS.blue, width: 2 },
@@ -791,7 +877,6 @@ function renderPositioning() {
             line: { color: 'rgba(200,200,200,0.2)', width: 1 } }],
     }), PLOTLY_CONFIG);
 
-    // Z-score history
     if (c.zscore_history && c.zscore_history.length) {
         const zh = c.zscore_history;
         Plotly.react('chart-pos-zscore', [{
@@ -813,7 +898,6 @@ function renderPositioning() {
         }), PLOTLY_CONFIG);
     }
 
-    // Z-score gauge
     renderZscoreGauge(z);
 }
 
@@ -870,5 +954,4 @@ function escHtml(s) {
     return div.innerHTML;
 }
 
-// ── Boot ─────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', init);

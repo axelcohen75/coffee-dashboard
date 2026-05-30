@@ -134,7 +134,7 @@ body {
 
 .overview-grid {
     display: grid;
-    grid-template-columns: 240px 1fr 280px;
+    grid-template-columns: 320px 1fr 340px;
     grid-template-rows: auto;
     gap: 0.8rem;
     min-height: calc(100vh - 50px);
@@ -356,9 +356,15 @@ body {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 0.35rem 0;
+    padding: 0.4rem 0.5rem;
     border-bottom: 1px solid rgba(30,42,58,0.5);
+    cursor: pointer;
+    transition: background 0.1s;
+    border-radius: 2px;
 }
+
+.spread-item:hover { background: rgba(0,212,170,0.06); }
+.spread-item.active { background: rgba(0,212,170,0.12); border-left: 2px solid var(--accent); }
 
 .spread-label {
     font-size: 0.7rem;
@@ -370,6 +376,34 @@ body {
     font-weight: 700;
     font-family: var(--font-mono);
 }
+
+/* Term structure compare */
+.ts-controls {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    flex-wrap: wrap;
+    margin-bottom: 0.3rem;
+}
+
+.ts-date-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.2rem 0.5rem;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    font-size: 0.65rem;
+    color: var(--text-secondary);
+}
+
+.ts-date-tag .remove {
+    cursor: pointer;
+    color: var(--text-muted);
+    font-weight: 700;
+}
+.ts-date-tag .remove:hover { color: var(--red); }
 
 /* ── Performance table ───────────────────────────────────────────────── */
 
@@ -615,8 +649,12 @@ select:focus { border-color: var(--accent); }
 
 /* ── Responsive ──────────────────────────────────────────────────────── */
 
+@media (max-width: 1400px) {
+    .overview-grid { grid-template-columns: 280px 1fr 300px; }
+}
+
 @media (max-width: 1200px) {
-    .overview-grid { grid-template-columns: 200px 1fr 240px; }
+    .overview-grid { grid-template-columns: 250px 1fr 260px; }
 }
 
 @media (max-width: 900px) {

@@ -111,7 +111,7 @@
             </div>
         </div>
 
-        <!-- RIGHT: Term structure + Performance + Spread Dashboard + Polymarket -->
+        <!-- RIGHT: Term structure + Compare + Spread Dashboard + Polymarket -->
         <div>
             <div class="panel">
                 <div class="panel-header">
@@ -121,18 +121,20 @@
                 <div class="panel-body-flush">
                     <div id="chart-term-structure" class="chart-container"></div>
                 </div>
-            </div>
-
-            <div class="panel" style="margin-top:0.8rem;">
-                <div class="panel-header">
-                    <span class="panel-title">PERFORMANCE</span>
+                <div class="panel-body" style="border-top:1px solid var(--border);">
+                    <div class="section-header" style="margin-top:0;">COMPARE DATE</div>
+                    <div class="ts-controls">
+                        <input type="date" id="ts-compare-date" style="background:var(--bg-card);color:var(--text-primary);border:1px solid var(--border);border-radius:3px;padding:0.25rem 0.4rem;font-size:0.7rem;font-family:var(--font-sans);">
+                        <button class="btn-refresh" id="ts-add-date" style="padding:0.25rem 0.6rem;">ADD DATE</button>
+                    </div>
+                    <div id="ts-date-tags" style="margin-top:0.3rem;"></div>
                 </div>
-                <div class="panel-body" id="performance-table"></div>
             </div>
 
             <div class="panel" style="margin-top:0.8rem;">
                 <div class="panel-header">
                     <span class="panel-title">SPREAD DASHBOARD</span>
+                    <span class="panel-subtitle">Click to chart →</span>
                 </div>
                 <div class="panel-body" id="spread-dashboard"></div>
             </div>
