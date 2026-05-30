@@ -4,8 +4,9 @@
  */
 
 let DATA = null;
-let tsCompareDates = [];  // term structure comparison dates
-let activeSpread = null;  // currently selected spread in dashboard
+let tsCompareDates = [];
+let activeSpread = null;
+let selectedAssets = ['kc'];  // multi-select for price chart
 
 async function init() {
     try {
@@ -50,82 +51,151 @@ function renderOverview() {
     renderSpotPrices();
     renderPriceEvolution('1Y');
     renderTermStructure();
-    renderSpreadMonitor();
-    renderCalendarSpread();
-    renderNews();
     renderSpreadDashboard();
+    setupSpreadDropdown();
+    renderSpreadMonitorFromDropdown();
+    renderKeyDates();
+    renderNews();
     renderPolymarket();
     setupHorizonButtons();
     setupTermStructureCompare();
 }
 
+// ── Clickable Spot Prices with multi-select ─────────────────────────────
+
+function getAssetData(key) {
+    const f = DATA.futures;
+    if (key === 'kc') return { label: 'KC Arabica', price: f.kc.front, unit: '¢/lb', history: f.kc.history, color: COLORS.accent };
+    if (key === 'rc') return { label: 'Robusta', price: f.rc.front, unit: '$/t', history: f.rc.history, color: COLORS.blue };
+    if (key === 'arb_rob') return { label: 'Arb-Rob Spread', price: f.arb_rob?.current, unit: '¢/lb', history: f.arb_rob?.history, color: COLORS.orange };
+    return null;
+}
+
+function computePerf(history, days) {
+    if (!history || history.length < 2) return null;
+    const now = history[history.length - 1];
+    const cutoff = new Date(new Date(now.date).getTime() - days * 86400000).toISOString().slice(0, 10);
+    const ref = history.find(d => d.date >= cutoff) || history[0];
+    if (!ref || ref.value === 0) return null;
+    return ((now.value - ref.value) / ref.value) * 100;
+}
+
+function computeYTDPerf(history) {
+    if (!history || history.length < 2) return null;
+    const now = history[history.length - 1];
+    const yearStart = `${new Date().getFullYear()}-01-01`;
+    const ref = history.find(d => d.date >= yearStart) || history[0];
+    if (!ref || ref.value === 0) return null;
+    return ((now.value - ref.value) / ref.value) * 100;
+}
+
 function renderSpotPrices() {
     const el = document.getElementById('spot-prices');
-    const f = DATA.futures;
-    let html = '';
-
-    const items = [
-        { name: 'KC Arabica', price: f.kc.front, unit: '¢/lb', d1: f.kc.performance?.['1d'], m1: f.kc.performance?.['1m'] },
-        { name: 'Robusta', price: f.rc.front, unit: '$/t', d1: f.rc.performance?.['1d'], m1: f.rc.performance?.['1m'] },
-        { name: 'RC (¢/lb equiv.)', price: f.rc.front_cents_lb, unit: '¢/lb', d1: null, m1: null },
-        { name: 'Arb-Rob Spread', price: f.arb_rob.current, unit: '¢/lb', d1: null, m1: null },
+    const assets = [
+        { key: 'kc', label: 'KC Arabica' },
+        { key: 'rc', label: 'Robusta' },
+        { key: 'arb_rob', label: 'Arb-Rob Spread' },
     ];
 
-    for (const item of items) {
-        if (item.price == null) continue;
-        const d1Txt = fmtPct(item.d1);
-        const d1Cls = pctClass(item.d1);
-        const m1Txt = fmtPct(item.m1);
-        const m1Cls = pctClass(item.m1);
+    let html = `<div style="display:flex;justify-content:flex-end;gap:0.5rem;margin-bottom:0.3rem;padding:0 0.2rem;">
+        <span class="spot-perf-label">1M</span>
+        <span class="spot-perf-label">YTD</span>
+    </div>`;
+
+    for (const asset of assets) {
+        const data = getAssetData(asset.key);
+        if (!data || data.price == null) continue;
+        const sel = selectedAssets.includes(asset.key) ? ' selected' : '';
+        const perf1m = computePerf(data.history, 30);
+        const perfYtd = computeYTDPerf(data.history);
+
         html += `
-        <div class="spot-row">
-            <div class="spot-indicator" style="background:${COLORS.accent}"></div>
-            <span class="spot-name">${item.name}</span>
-            <span class="spot-price">${fmtNum(item.price, item.unit === '$/t' ? 0 : 2)}</span>
-            <span class="spot-unit">${item.unit}</span>
-            <span class="spot-change ${d1Cls}">${d1Txt}</span>
-            <span class="spot-change ${m1Cls}">${m1Txt}</span>
+        <div class="spot-row${sel}" onclick="toggleAsset('${asset.key}')">
+            <div class="spot-indicator" style="background:${data.color}"></div>
+            <span class="spot-name">${data.label}</span>
+            <span class="spot-price">${fmtNum(data.price, data.unit === '$/t' ? 0 : 2)}</span>
+            <span class="spot-unit">${data.unit}</span>
+            <span class="spot-perf ${pctClass(perf1m)}">${fmtPct(perf1m)}</span>
+            <span class="spot-perf ${pctClass(perfYtd)}">${fmtPct(perfYtd)}</span>
         </div>`;
     }
     el.innerHTML = html;
 }
 
+function toggleAsset(key) {
+    const idx = selectedAssets.indexOf(key);
+    if (idx >= 0) {
+        if (selectedAssets.length <= 1) return;
+        selectedAssets.splice(idx, 1);
+    } else {
+        selectedAssets.push(key);
+    }
+    renderSpotPrices();
+    const activeHorizon = document.querySelector('.horizon-btn.active')?.dataset.horizon || '1Y';
+    renderPriceEvolution(activeHorizon);
+}
+
+// ── Price Evolution (multi-asset, % mode when multiple) ─────────────────
+
 function renderPriceEvolution(horizon) {
-    const hist = DATA.futures.kc.history;
-    if (!hist || !hist.length) return;
-
+    const multiMode = selectedAssets.length > 1;
     const cutoff = getCutoffDate(horizon);
-    const filtered = hist.filter(d => d.date >= cutoff);
-    const seasonal = DATA.futures.kc.seasonal;
+    const traces = [];
 
-    const traces = [{
-        x: filtered.map(d => d.date),
-        y: filtered.map(d => d.value),
-        name: 'KC Arabica',
-        line: { color: COLORS.accent, width: 2 },
-        fill: 'tozeroy',
-        fillcolor: 'rgba(0,212,170,0.06)',
-    }];
+    for (const key of selectedAssets) {
+        const asset = getAssetData(key);
+        if (!asset || !asset.history || !asset.history.length) continue;
 
-    if (seasonal && seasonal.length > 0 && horizon !== '1D' && horizon !== '1W') {
-        const seasonalMap = {};
-        seasonal.forEach(s => { seasonalMap[s.doy] = s.value; });
-        const sVals = filtered.map(d => {
-            const doy = getDOY(d.date);
-            return seasonalMap[doy] || null;
-        });
+        const filtered = asset.history.filter(d => d.date >= cutoff);
+        if (!filtered.length) continue;
+
+        let yVals, yTitle;
+        if (multiMode) {
+            const base = filtered[0].value;
+            if (base === 0) continue;
+            yVals = filtered.map(d => ((d.value / base) - 1) * 100);
+            yTitle = 'Performance (%)';
+        } else {
+            yVals = filtered.map(d => d.value);
+            yTitle = asset.unit;
+        }
+
         traces.push({
             x: filtered.map(d => d.date),
-            y: sVals,
-            name: '5y Seasonal',
-            line: { color: COLORS.green, width: 1.5, dash: 'dash' },
-            opacity: 0.6,
+            y: yVals,
+            name: asset.label,
+            line: { color: asset.color, width: 2 },
+            fill: selectedAssets.length === 1 ? 'tozeroy' : undefined,
+            fillcolor: selectedAssets.length === 1 ? asset.color.replace(')', ',0.06)').replace('rgb', 'rgba') : undefined,
+        });
+    }
+
+    // Update title
+    const titleEl = document.getElementById('price-evo-title');
+    const subtitleEl = document.getElementById('price-evo-subtitle');
+    if (multiMode) {
+        titleEl.textContent = 'RELATIVE PERFORMANCE';
+        subtitleEl.textContent = ' ' + selectedAssets.map(k => getAssetData(k)?.label).filter(Boolean).join(' vs ') + ' // %';
+    } else {
+        const asset = getAssetData(selectedAssets[0]);
+        titleEl.textContent = 'PRICE EVOLUTION';
+        subtitleEl.textContent = ` ${asset?.label || 'KC ARABICA'} // ${asset?.unit || '¢/lb'}`;
+    }
+
+    if (multiMode) {
+        traces.push({
+            x: [cutoff, new Date().toISOString().slice(0, 10)],
+            y: [0, 0],
+            mode: 'lines',
+            line: { color: 'rgba(200,200,200,0.2)', width: 1, dash: 'dot' },
+            showlegend: false,
+            hoverinfo: 'skip',
         });
     }
 
     Plotly.react('chart-price-evolution', traces, mergeLayout({
         height: 310,
-        yaxis: { title: '¢/lb' },
+        yaxis: { title: multiMode ? '%' : (getAssetData(selectedAssets[0])?.unit || '¢/lb') },
     }), PLOTLY_CONFIG);
 }
 
@@ -148,7 +218,6 @@ function renderTermStructure() {
         marker: { size: 7 },
     }];
 
-    // Add comparison date traces
     const compareColors = [COLORS.orange, COLORS.purple, COLORS.yellow, COLORS.red];
     tsCompareDates.forEach((dateStr, i) => {
         const curve = getHistoricalCurveAtDate(dateStr);
@@ -180,22 +249,16 @@ function renderTermStructure() {
 }
 
 function getHistoricalCurveAtDate(dateStr) {
-    // Find the KC price on that date from history, then estimate curve
-    // by applying the current curve's shape (spread ratios) to the historical front price
     const hist = DATA.futures.kc.history;
     if (!hist || !hist.length) return null;
 
-    // Find closest date
     let closest = null;
     let minDiff = Infinity;
     for (const pt of hist) {
         const diff = Math.abs(new Date(pt.date) - new Date(dateStr));
-        if (diff < minDiff) {
-            minDiff = diff;
-            closest = pt;
-        }
+        if (diff < minDiff) { minDiff = diff; closest = pt; }
     }
-    if (!closest || minDiff > 7 * 86400000) return null;  // within 7 days
+    if (!closest || minDiff > 7 * 86400000) return null;
 
     const currentCurve = DATA.forward_curve.kc;
     if (!currentCurve || !currentCurve.length) return null;
@@ -214,7 +277,6 @@ function setupTermStructureCompare() {
     const addBtn = document.getElementById('ts-add-date');
     const dateInput = document.getElementById('ts-compare-date');
 
-    // Default to 1 month ago
     const defaultDate = new Date();
     defaultDate.setMonth(defaultDate.getMonth() - 1);
     dateInput.value = defaultDate.toISOString().slice(0, 10);
@@ -222,7 +284,7 @@ function setupTermStructureCompare() {
     addBtn.addEventListener('click', () => {
         const val = dateInput.value;
         if (!val || tsCompareDates.includes(val)) return;
-        if (tsCompareDates.length >= 4) return;  // max 4 overlays
+        if (tsCompareDates.length >= 4) return;
         tsCompareDates.push(val);
         renderTermStructure();
         renderTsDateTags();
@@ -231,10 +293,7 @@ function setupTermStructureCompare() {
 
 function renderTsDateTags() {
     const el = document.getElementById('ts-date-tags');
-    if (!tsCompareDates.length) {
-        el.innerHTML = '';
-        return;
-    }
+    if (!tsCompareDates.length) { el.innerHTML = ''; return; }
     const compareColors = [COLORS.orange, COLORS.purple, COLORS.yellow, COLORS.red];
     let html = '';
     tsCompareDates.forEach((d, i) => {
@@ -260,12 +319,30 @@ function clearTsDates() {
     renderTsDateTags();
 }
 
-// ── Spread Monitor (updates when dashboard item clicked) ─────────────────
+// ── Spread Monitor with dropdown ────────────────────────────────────────
+
+function setupSpreadDropdown() {
+    const sel = document.getElementById('spread-select');
+    let html = '<option value="arb_rob">Arb-Rob Spread</option>';
+    for (const def of SPREAD_DEFS) {
+        html += `<option value="${def.key}">${def.label} (${def.desc})</option>`;
+    }
+    sel.innerHTML = html;
+    sel.addEventListener('change', () => {
+        renderSpreadMonitorFromDropdown();
+    });
+}
+
+function renderSpreadMonitorFromDropdown() {
+    const sel = document.getElementById('spread-select');
+    const key = sel.value || 'arb_rob';
+    renderSpreadMonitor(key);
+}
 
 function renderSpreadMonitor(spreadKey) {
     const chartEl = document.getElementById('chart-spread-monitor');
+    const subtitleEl = document.getElementById('spread-chart-subtitle');
 
-    // Default: arb-rob, or the selected spread
     if (!spreadKey || spreadKey === 'arb_rob') {
         const arb = DATA.futures.arb_rob;
         if (!arb || !arb.history || !arb.history.length) {
@@ -273,10 +350,7 @@ function renderSpreadMonitor(spreadKey) {
             return;
         }
         renderSpreadChart(arb.history, arb.mean, arb.current, 'KC − RC Spread');
-
-        // Update the panel subtitle
-        const subtitle = chartEl.closest('.panel')?.querySelector('.panel-subtitle');
-        if (subtitle) subtitle.textContent = ' Arabica premium over Robusta // ¢/lb';
+        if (subtitleEl) subtitleEl.textContent = ' Arabica premium over Robusta // ¢/lb';
     } else {
         const sp = DATA.spreads?.[spreadKey];
         if (!sp || !sp.history || !sp.history.length) {
@@ -284,9 +358,7 @@ function renderSpreadMonitor(spreadKey) {
             return;
         }
         renderSpreadChart(sp.history, sp.mean, sp.current, sp.label);
-
-        const subtitle = chartEl.closest('.panel')?.querySelector('.panel-subtitle');
-        if (subtitle) subtitle.textContent = ` ${sp.label} // ¢/lb`;
+        if (subtitleEl) subtitleEl.textContent = ` ${sp.label} // ¢/lb`;
     }
 }
 
@@ -319,34 +391,164 @@ function renderSpreadChart(history, mean, current, name) {
     }), PLOTLY_CONFIG);
 }
 
-function renderCalendarSpread() {
-    const nz = DATA.spreads?.nz;
-    if (!nz || !nz.history || !nz.history.length) {
-        document.getElementById('chart-calendar-spread').innerHTML =
-            '<div class="loading">N-Z spread data not available</div>';
+// ── Spread Dashboard (clickable → updates dropdown + chart) ─────────────
+
+function renderSpreadDashboard() {
+    const el = document.getElementById('spread-dashboard');
+    let html = '';
+
+    const arb = DATA.futures.arb_rob;
+    if (arb && arb.current != null) {
+        const cls = arb.current >= 0 ? 'up' : 'down';
+        html += `<div class="spread-item${activeSpread === 'arb_rob' ? ' active' : ''}" onclick="selectSpread('arb_rob')">
+            <span class="spread-label">Arb-Rob</span>
+            <span class="spread-value ${cls}">${arb.current >= 0 ? '+' : ''}${fmtNum(arb.current)} ¢/lb</span>
+        </div>`;
+    }
+
+    for (const def of SPREAD_DEFS) {
+        const sp = DATA.spreads?.[def.key];
+        if (!sp) continue;
+        const cls = sp.current >= 0 ? 'up' : 'down';
+        html += `<div class="spread-item${activeSpread === def.key ? ' active' : ''}" onclick="selectSpread('${def.key}')">
+            <span class="spread-label">${def.label}</span>
+            <span class="spread-value ${cls}">${sp.current >= 0 ? '+' : ''}${fmtNum(sp.current)} ¢/lb</span>
+        </div>`;
+    }
+
+    el.innerHTML = html || '<div style="color:var(--text-muted);font-size:0.75rem;">No spread data available.</div>';
+}
+
+function selectSpread(key) {
+    activeSpread = key;
+    renderSpreadDashboard();
+    // Sync the dropdown
+    const sel = document.getElementById('spread-select');
+    if (sel) sel.value = key;
+    renderSpreadMonitor(key);
+}
+
+// ── Key Dates Calendar ──────────────────────────────────────────────────
+
+function renderKeyDates() {
+    const el = document.getElementById('key-dates');
+    const now = new Date();
+    const year = now.getFullYear();
+
+    const keyDates = [
+        // CFTC COT — every Friday
+        ...getNextCOTDates(now, 4).map(d => ({
+            date: d, title: 'CFTC COT Report', tag: 'CFTC', tagClass: 'tag-cftc',
+        })),
+        // USDA WASDE — around 10th of each month
+        ...getNextWASDEDates(now, 3).map(d => ({
+            date: d, title: 'USDA WASDE Report', tag: 'USDA', tagClass: 'tag-usda',
+        })),
+        // ICE certified stocks — daily (show next 2 business days)
+        ...getNextBusinessDays(now, 2).map(d => ({
+            date: d, title: 'ICE Certified Stock Update', tag: 'ICE', tagClass: 'tag-ice',
+        })),
+        // Brazil frost season
+        { date: new Date(year, 5, 1), title: 'Brazil Frost Season Begins', tag: 'WEATHER', tagClass: 'tag-weather' },
+        { date: new Date(year, 7, 31), title: 'Brazil Frost Season Ends', tag: 'WEATHER', tagClass: 'tag-weather' },
+        // Brazil harvest
+        { date: new Date(year, 4, 1), title: 'Brazil Arabica Harvest Starts', tag: 'BRAZIL', tagClass: 'tag-brazil' },
+        { date: new Date(year, 8, 30), title: 'Brazil Arabica Harvest Ends', tag: 'BRAZIL', tagClass: 'tag-brazil' },
+        // ICO monthly report — mid month
+        ...getNextICODates(now, 2).map(d => ({
+            date: d, title: 'ICO Monthly Coffee Report', tag: 'ICO', tagClass: 'tag-ico',
+        })),
+        // KC contract expirations
+        { date: new Date(year, 6, 21), title: 'KC Jul (N) Contract Expiry', tag: 'ICE', tagClass: 'tag-ice' },
+        { date: new Date(year, 8, 18), title: 'KC Sep (U) Contract Expiry', tag: 'ICE', tagClass: 'tag-ice' },
+        { date: new Date(year, 11, 18), title: 'KC Dec (Z) Contract Expiry', tag: 'ICE', tagClass: 'tag-ice' },
+        { date: new Date(year + 1, 2, 20), title: 'KC Mar (H) Contract Expiry', tag: 'ICE', tagClass: 'tag-ice' },
+        // Brazil flowering
+        { date: new Date(year, 8, 15), title: 'Brazil Flowering Season Begins', tag: 'WEATHER', tagClass: 'tag-weather' },
+    ];
+
+    // Filter future dates, sort, take next 10
+    const upcoming = keyDates
+        .filter(d => d.date >= new Date(now.getFullYear(), now.getMonth(), now.getDate()))
+        .sort((a, b) => a.date - b.date)
+        .slice(0, 10);
+
+    if (!upcoming.length) {
+        el.innerHTML = '<div style="color:var(--text-muted);font-size:0.75rem;">No upcoming dates.</div>';
         return;
     }
 
-    const h = nz.history;
-    const traces = [{
-        x: h.map(d => d.date), y: h.map(d => d.value),
-        name: 'N-Z', line: { color: COLORS.accent, width: 1.5 },
-    }];
+    let html = '';
+    for (const item of upcoming) {
+        const d = item.date;
+        const dayNum = d.getDate();
+        const month = MONTHS[d.getMonth()];
+        const isToday = d.toDateString() === now.toDateString();
+        const isTomorrow = d.toDateString() === new Date(now.getTime() + 86400000).toDateString();
+        const dayLabel = isToday ? 'TODAY' : isTomorrow ? 'TMRW' : '';
 
-    const shapes = [{
-        type: 'line', y0: nz.mean, y1: nz.mean, x0: h[0].date, x1: h[h.length - 1].date,
-        line: { color: COLORS.red, dash: 'dash', width: 1.5 },
-    }];
+        html += `<div class="key-date-item">
+            <div class="key-date-day">
+                <div class="key-date-day-num" ${isToday ? 'style="color:var(--accent)"' : ''}>${dayNum}</div>
+                <div class="key-date-day-month">${month}</div>
+            </div>
+            <div class="key-date-info">
+                <span class="key-date-title">${item.title}</span>
+                <span class="key-date-tag ${item.tagClass}">${item.tag}</span>
+                ${dayLabel ? `<span style="font-size:0.55rem;color:var(--accent);font-weight:700;margin-left:0.3rem;">${dayLabel}</span>` : ''}
+            </div>
+        </div>`;
+    }
+    el.innerHTML = html;
+}
 
-    Plotly.react('chart-calendar-spread', traces, mergeLayout({
-        height: 310,
-        title: {
-            text: `Current: ${fmtNum(nz.current)} | Min: ${fmtNum(nz.p5)} | Max: ${fmtNum(nz.p95)}`,
-            font: { size: 10, color: COLORS.muted },
-        },
-        yaxis: { title: '¢/lb' },
-        shapes: shapes,
-    }), PLOTLY_CONFIG);
+function getNextCOTDates(from, count) {
+    const dates = [];
+    let d = new Date(from);
+    while (dates.length < count) {
+        d = new Date(d.getTime() + 86400000);
+        if (d.getDay() === 5) dates.push(new Date(d));
+    }
+    return dates;
+}
+
+function getNextWASDEDates(from, count) {
+    const dates = [];
+    let month = from.getMonth();
+    let year = from.getFullYear();
+    for (let i = 0; i < count + 2; i++) {
+        const candidate = new Date(year, month + i, 12);
+        // adjust to nearest weekday
+        if (candidate.getDay() === 0) candidate.setDate(13);
+        if (candidate.getDay() === 6) candidate.setDate(14);
+        if (candidate >= from) dates.push(candidate);
+        if (dates.length >= count) break;
+    }
+    return dates;
+}
+
+function getNextBusinessDays(from, count) {
+    const dates = [];
+    let d = new Date(from);
+    while (dates.length < count) {
+        d = new Date(d.getTime() + 86400000);
+        if (d.getDay() >= 1 && d.getDay() <= 5) dates.push(new Date(d));
+    }
+    return dates;
+}
+
+function getNextICODates(from, count) {
+    const dates = [];
+    let month = from.getMonth();
+    let year = from.getFullYear();
+    for (let i = 0; i < count + 2; i++) {
+        const candidate = new Date(year, month + i, 15);
+        if (candidate.getDay() === 0) candidate.setDate(16);
+        if (candidate.getDay() === 6) candidate.setDate(17);
+        if (candidate >= from) dates.push(candidate);
+        if (dates.length >= count) break;
+    }
+    return dates;
 }
 
 // ── News (sorted by recency) ─────────────────────────────────────────────
@@ -356,14 +558,12 @@ function renderNews() {
     let news = DATA.news || [];
     if (!news.length) { el.innerHTML = '<div class="news-item">No coffee news available.</div>'; return; }
 
-    // Parse and sort by actual date, most recent first
     news = news.map(a => {
         let ts = 0;
         try { ts = new Date(a.published).getTime(); } catch(e) {}
         return { ...a, _ts: ts };
     }).sort((a, b) => b._ts - a._ts);
 
-    // Recompute ages from sorted dates
     const now = Date.now();
     news.forEach(a => {
         if (a._ts > 0) {
@@ -389,40 +589,6 @@ function renderNews() {
         </div>`;
     }
     el.innerHTML = html;
-}
-
-// ── Spread Dashboard (clickable → updates spread monitor) ────────────────
-
-function renderSpreadDashboard() {
-    const el = document.getElementById('spread-dashboard');
-    let html = '';
-
-    const arb = DATA.futures.arb_rob;
-    if (arb && arb.current != null) {
-        const cls = arb.current >= 0 ? 'up' : 'down';
-        html += `<div class="spread-item${activeSpread === 'arb_rob' ? ' active' : ''}" data-spread="arb_rob" onclick="selectSpread('arb_rob')">
-            <span class="spread-label">Arb-Rob</span>
-            <span class="spread-value ${cls}">${arb.current >= 0 ? '+' : ''}${fmtNum(arb.current)} ¢/lb</span>
-        </div>`;
-    }
-
-    for (const def of SPREAD_DEFS) {
-        const sp = DATA.spreads?.[def.key];
-        if (!sp) continue;
-        const cls = sp.current >= 0 ? 'up' : 'down';
-        html += `<div class="spread-item${activeSpread === def.key ? ' active' : ''}" data-spread="${def.key}" onclick="selectSpread('${def.key}')">
-            <span class="spread-label">${def.label}</span>
-            <span class="spread-value ${cls}">${sp.current >= 0 ? '+' : ''}${fmtNum(sp.current)} ¢/lb</span>
-        </div>`;
-    }
-
-    el.innerHTML = html || '<div style="color:var(--text-muted);font-size:0.75rem;">No spread data available.</div>';
-}
-
-function selectSpread(key) {
-    activeSpread = key;
-    renderSpreadDashboard();  // re-render to update .active class
-    renderSpreadMonitor(key);  // update the chart
 }
 
 function renderPolymarket() {
