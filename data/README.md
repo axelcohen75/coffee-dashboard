@@ -28,3 +28,19 @@ schema:
 
 These files are intentionally absent until a clean, repeatable source/export is
 available.
+
+## Positioning data
+
+### `Arabica_COT.csv` - Arabica CFTC COT history
+
+Used by the Streamlit Positioning page as the primary local source for trader
+positioning. Expected columns follow the CFTC disaggregated report style,
+including report date, open interest, long/short positions for managed money,
+commercials, swap dealers and other reportables, plus net columns when
+available.
+
+### `Robusta_COT.csv` - Robusta COT history (optional)
+
+If a Robusta COT file is added with the same schema, the Positioning page will
+automatically expose it in the market selector.
+
