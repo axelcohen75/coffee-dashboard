@@ -6,7 +6,7 @@ should stay outside the repository unless they are wired into a loader.
 
 ## Active fallback data
 
-### `rc_history.csv` - Robusta Coffee Futures (ICE London)
+### `ice_robusta_futures_history.csv` - Robusta Coffee Futures (ICE London)
 
 Used by `utils/futures.py` and `scripts/fetch_market_data.py` when Yahoo Finance
 does not return RC data.

@@ -110,7 +110,7 @@ def _euro_float(val) -> float:
 
 
 def _load_rc_csv() -> pd.DataFrame:
-    for fname in ("rc_history.csv", "rc_front.csv"):
+    for fname in ("ice_robusta_futures_history.csv",):
         path = DATA_DIR / fname
         if not path.exists():
             continue

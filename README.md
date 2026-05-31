@@ -3,13 +3,13 @@
 Coffee Market Monitor is a dashboard for following coffee futures, spreads,
 Brazil parity, weather, CFTC positioning, news, and options analytics.
 
-The repository currently exposes two product surfaces:
+The primary product surface is the **Streamlit dashboard** in `app.py` and
+`pages/`. It provides the interactive analyst workflow with live API calls and
+Streamlit multipage navigation.
 
-- **Static dashboard** in `docs/` for GitHub Pages. The scheduled workflow runs
-  `python scripts/fetch_market_data.py` and writes `docs/data/market-data.json`,
-  which is consumed by `docs/index.html`.
-- **Streamlit dashboard** in `app.py` and `pages/` for local interactive use with
-  live API calls and Streamlit multipage navigation.
+A secondary static dashboard still lives in `docs/` for GitHub Pages. The
+scheduled workflow runs `python scripts/fetch_market_data.py` and writes
+`docs/data/market-data.json`, which is consumed by `docs/index.html`.
 
 ## Quick start
 

@@ -134,8 +134,8 @@ def fetch_rc_front() -> float | None:
     df = _yf("RC=F", "5d")
     if not df.empty:
         return round(float(df["Close"].iloc[-1]), 0)
-    # CSV fallback: data/rc_history.csv or data/rc_front.csv
-    for fname in ("rc_front.csv", "rc_history.csv"):
+    # CSV fallback: data/ice_robusta_futures_history.csv
+    for fname in ("ice_robusta_futures_history.csv",):
         csv_df = _load_csv(fname)
         if not csv_df.empty and "Close" in csv_df.columns:
             return round(float(csv_df["Close"].iloc[-1]), 0)
@@ -186,11 +186,11 @@ def fetch_kc_history() -> pd.DataFrame:
 
 @st.cache_data(ttl=86400)
 def fetch_rc_history() -> pd.DataFrame:
-    """5 years of RC daily closes. Falls back to data/rc_history.csv."""
+    """5 years of RC daily closes. Falls back to data/ice_robusta_futures_history.csv."""
     df = _yf("RC=F", "5y")
     if not df.empty:
         return df[["Close"]]
-    csv_df = _load_csv("rc_history.csv")
+    csv_df = _load_csv("ice_robusta_futures_history.csv")
     return csv_df[["Close"]] if not csv_df.empty else pd.DataFrame()
 
 
