@@ -1,6 +1,6 @@
 """
 Weekly market note generator.
-Run every Friday via GitHub Action cron or manually: python etl/weekly_note.py
+Run manually each Friday: python scripts/generate_weekly_market_note.py
 
 Generates notes/YYYY-Www-market-note.md with a structured snapshot
 of the coffee market. The "My read" section is left blank for manual input.
@@ -35,7 +35,8 @@ def generate_note() -> str:
     weather_flags = "no active alerts"
 
     try:
-        from utils.futures import fetch_kc_front, fetch_rc_front, USD_T_TO_CENTS_LB
+        from utils.futures import fetch_kc_front, fetch_rc_front
+        from utils.conversions import USD_T_TO_CENTS_LB
         kc = fetch_kc_front.__wrapped__() if hasattr(fetch_kc_front, '__wrapped__') else None
         rc = fetch_rc_front.__wrapped__() if hasattr(fetch_rc_front, '__wrapped__') else None
         if kc is None:

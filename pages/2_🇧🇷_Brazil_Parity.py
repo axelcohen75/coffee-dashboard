@@ -1,6 +1,4 @@
-"""
-Brique 3: Brazil Internal Price Equivalent — FOB Santos parity vs CEPEA.
-"""
+"""Brazil parity page: FOB Santos export parity vs CEPEA internal price."""
 
 import numpy as np
 import pandas as pd

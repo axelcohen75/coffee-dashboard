@@ -613,33 +613,6 @@ function renderNews() {
     el.innerHTML = html;
 }
 
-function renderPolymarket() {
-    const el = document.getElementById('polymarket-list');
-    const markets = DATA.polymarket || [];
-
-    if (!markets.length) {
-        el.innerHTML = `<div class="poly-card">
-            <div class="poly-question">No active coffee or climate prediction markets found on Polymarket.</div>
-            <div class="poly-vol">Coffee & climate markets will appear here when available.</div>
-        </div>`;
-        return;
-    }
-
-    let html = '';
-    for (const m of markets.slice(0, 8)) {
-        const catBadge = m.category === 'climate'
-            ? '<span style="font-size:0.55rem;padding:1px 4px;border-radius:2px;background:rgba(231,111,81,0.15);color:var(--red);font-weight:700;margin-right:0.3rem;">CLIMATE</span>'
-            : '<span style="font-size:0.55rem;padding:1px 4px;border-radius:2px;background:rgba(0,212,170,0.15);color:var(--green);font-weight:700;margin-right:0.3rem;">COFFEE</span>';
-        html += `<div class="poly-card">
-            <div class="poly-question">${catBadge}${escHtml(m.question.slice(0, 120))}</div>
-            <div class="poly-stats">
-                <span class="poly-yes">YES ${m.yes_pct != null ? m.yes_pct.toFixed(0) + '%' : '—'}</span>
-                <span class="poly-vol">Vol: $${fmtInt(m.volume)} · ${m.end_date || '—'}</span>
-            </div>
-        </div>`;
-    }
-    el.innerHTML = html;
-}
 
 function setupHorizonButtons() {
     document.querySelectorAll('.horizon-btn').forEach(btn => {

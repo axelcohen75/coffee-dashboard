@@ -1,6 +1,4 @@
-"""
-Brique 6: CFTC Positioning — Managed Money & Commercials.
-"""
+"""Positioning page: CFTC managed-money and commercial trader flows."""
 
 import numpy as np
 import pandas as pd
@@ -225,7 +223,6 @@ st.plotly_chart(fig_z, use_container_width=True)
 # ── Latest weekly note link ──
 st.markdown('<div class="section-header">WEEKLY MARKET NOTE</div>', unsafe_allow_html=True)
 
-import os
 from pathlib import Path
 
 notes_dir = Path(__file__).parent.parent / "notes"
@@ -238,7 +235,7 @@ if notes:
         st.markdown(latest.read_text())
 else:
     st.info(
-        "No weekly notes yet. Run `python etl/weekly_note.py` each Friday to generate one. "
+        "No weekly notes yet. Run `python scripts/generate_weekly_market_note.py` each Friday to generate one. "
         "The 'My read' section is for your manual market commentary."
     )
 

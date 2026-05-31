@@ -11,7 +11,6 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from utils.futures import (
-    USD_T_TO_CENTS_LB,
     apply_seasonal_to_series,
     compute_performance,
     compute_seasonal,
@@ -22,6 +21,7 @@ from utils.futures import (
     fetch_rc_front,
     fetch_rc_history,
 )
+from utils.conversions import USD_T_TO_CENTS_LB
 from utils.news import SENTIMENT_COLORS, fetch_coffee_news
 from utils.polymarket import fetch_coffee_markets
 
@@ -54,7 +54,7 @@ HORIZON_OFFSETS = {
 }
 
 SPREAD_OPTS = {
-    "Brent-WTI → KC−RC (Arb/Rob)": ("arb_rob", "K", "N", False),
+    "KC−RC (Arb/Rob)": ("arb_rob", "K", "N", False),
     "KC K−N (May−Jul)": ("intra", "K", "N", False),
     "KC N−Z (Jul−Dec)": ("intra", "N", "Z", False),
     "KC Z−H (Dec−Mar)": ("intra", "Z", "H", True),
@@ -225,7 +225,7 @@ with left_col:
     if rc_price:
         rc_1d = rc_perf.get("1D")
         rc_1m = rc_perf.get("1M")
-        items.append(("Brent → Robusta", f"{rc_price:,.0f}", "$/t", rc_1d, rc_1m))
+        items.append(("RC Robusta", f"{rc_price:,.0f}", "$/t", rc_1d, rc_1m))
     if rc_cl_price:
         items.append(("RC (¢/lb)", f"{rc_cl_price:.2f}", "¢/lb", None, None))
     if spread_val is not None:
@@ -250,7 +250,7 @@ with left_col:
         </div>
         """, unsafe_allow_html=True)
 
-    # ── Energy News → Coffee News ──
+    # ── Coffee News ──
     st.markdown('<div class="section-header">COFFEE NEWS</div>', unsafe_allow_html=True)
 
     news = fetch_coffee_news()

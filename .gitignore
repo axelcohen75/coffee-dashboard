@@ -1,5 +1,8 @@
 # Data files — do not commit CSV price data
 data/*.csv
+!data/rc_history.csv
+!data/ice_arabica_stocks.csv
+!data/ice_robusta_stocks.csv
 
 # Python
 __pycache__/

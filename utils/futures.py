@@ -21,9 +21,9 @@ import pandas as pd
 import streamlit as st
 import yfinance as yf
 
-# ── Constants ─────────────────────────────────────────────────────────────────
+from utils.conversions import USD_T_TO_CENTS_LB
 
-USD_T_TO_CENTS_LB: float = 100 / 2204.62   # ≈ 0.04536
+# ── Constants ─────────────────────────────────────────────────────────────────
 
 # ICE KC delivery months: Mar H, May K, Jul N, Sep U, Dec Z
 KC_MONTHS = ["H", "K", "N", "U", "Z"]

@@ -1,5 +1,5 @@
 /**
- * Coffee Market Monitor — Data definitions & presets.
+ * Coffee Market Monitor — shared dashboard constants and formatting helpers.
  */
 
 const COLORS = {
@@ -57,10 +57,10 @@ const WEATHER_ZONES = [
 ];
 
 const PHENOLOGY = [
-    { phase: 'Floraison', startMonth: 9, endMonth: 10, color: COLORS.red },
-    { phase: 'Formation grains', startMonth: 11, endMonth: 1, color: COLORS.orange },
+    { phase: 'Flowering', startMonth: 9, endMonth: 10, color: COLORS.red },
+    { phase: 'Bean formation', startMonth: 11, endMonth: 1, color: COLORS.orange },
     { phase: 'Maturation', startMonth: 2, endMonth: 4, color: COLORS.accent },
-    { phase: 'Récolte', startMonth: 5, endMonth: 8, color: COLORS.blue },
+    { phase: 'Harvest', startMonth: 5, endMonth: 8, color: COLORS.blue },
 ];
 
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];

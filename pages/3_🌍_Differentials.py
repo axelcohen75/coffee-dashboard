@@ -1,6 +1,4 @@
-"""
-Brique 4: FOB Differentials by Origin — ICO indicator prices.
-"""
+"""Differentials page: FOB coffee premiums by origin group."""
 
 import numpy as np
 import pandas as pd

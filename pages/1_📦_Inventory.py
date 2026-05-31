@@ -1,6 +1,4 @@
-"""
-Brique 2: ICE Certified Stocks — Arabica & Robusta inventory tracking.
-"""
+"""Inventory page: ICE certified arabica and robusta stocks."""
 
 import numpy as np
 import pandas as pd

@@ -1,6 +1,4 @@
-"""
-Brique 5: Weather — Minas Gerais & Cerrado coffee regions.
-"""
+"""Weather page: Minas Gerais and Cerrado coffee-region conditions."""
 
 import numpy as np
 import pandas as pd

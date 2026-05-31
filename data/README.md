@@ -1,19 +1,30 @@
-# Data Directory
+# Data directory
 
-Place your data files here. The fetch script will auto-detect formats.
+Keep this folder limited to data files that are actually consumed by the app or
+documented fallback paths. Timestamped raw downloads and one-off analysis files
+should stay outside the repository unless they are wired into a loader.
 
-## Required files
+## Active fallback data
 
-### `rc_history.csv` — Robusta Coffee Futures (ICE London)
-Download from Investing.com → [Robusta Coffee Futures Historical Data](https://www.investing.com/commodities/london-coffee-historical-data)
-- Click "Download Data" (CSV)
-- The French format (columns `Dernier`, dates `DD/MM/YYYY`, numbers like `3.476,00`) is auto-detected
-- Or standard format with `Date,Close` columns
+### `rc_history.csv` - Robusta Coffee Futures (ICE London)
 
-### `cepea_arabica.csv` (optional, V2)
-Download xlsx from [CEPEA](https://cepea.esalq.usp.br/br/indicador/cafe-arabica.aspx)
-- Convert to CSV with columns: `Date,Close` (R$/saca)
+Used by `utils/futures.py` and `scripts/fetch_market_data.py` when Yahoo Finance
+does not return RC data.
 
-### `ico_prices.csv` (optional, V2)
-Download from [ICO](https://ico.org/prices) → Daily Indicator Prices
-- CSV with columns for Colombian Milds, Other Milds, Brazilian Naturals, Robustas
+Download from Investing.com: [Robusta Coffee Futures Historical Data](https://www.investing.com/commodities/london-coffee-historical-data)
+
+- Click "Download Data" (CSV).
+- French Investing.com exports are auto-detected (`Dernier`, `DD/MM/YYYY`, values
+  such as `3.476,00`).
+- Standard `Date,Close` CSVs are also supported.
+
+## Optional canonical files
+
+The static-data ETL will load these files if they are added with the documented
+schema:
+
+- `ice_arabica_stocks.csv` - columns: `Date,Total,<port columns...>`
+- `ice_robusta_stocks.csv` - columns: `Date,Total`
+
+These files are intentionally absent until a clean, repeatable source/export is
+available.

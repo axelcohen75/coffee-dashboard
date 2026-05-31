@@ -22,11 +22,11 @@ import yfinance as yf
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
+from utils.conversions import LBS_PER_SACA, USD_T_TO_CENTS_LB
+
 OUT = ROOT / "docs" / "data" / "market-data.json"
 
 # ── Constants ────────────────────────────────────────────────────────────────
-USD_T_TO_CENTS_LB = 100 / 2204.62
-LBS_PER_SACA = 132.277
 KC_MONTHS = ["H", "K", "N", "U", "Z"]
 RC_MONTHS = ["F", "H", "K", "N", "U", "X"]
 MONTH_TO_INT = {
