@@ -132,17 +132,23 @@ body {
 
 /* ── Grid layouts ────────────────────────────────────────────────────────── */
 
+#tab-overview.active {
+    height: calc(100vh - 50px - 2.4rem);
+    overflow: hidden;
+    box-sizing: border-box;
+}
+
 .overview-grid {
     display: grid;
-    grid-template-columns: 260px 380px minmax(580px, 1fr);
-    grid-template-rows: auto minmax(300px, 34vh) minmax(0, 1fr);
+    grid-template-columns: 340px 360px minmax(580px, 1fr);
+    grid-template-rows: auto minmax(280px, 36vh) minmax(0, 1fr);
     grid-template-areas:
-        "badges badges ."
+        "badges spot charts-top"
         "keydates spot charts-top"
         "news news charts-bottom";
     gap: 0.6rem;
-    height: calc(100vh - 50px);
-    max-height: calc(100vh - 50px);
+    height: 100%;
+    max-height: 100%;
     overflow: hidden;
     align-items: stretch;
 }
@@ -151,7 +157,6 @@ body {
     grid-area: badges;
     display: flex;
     gap: 0.5rem;
-    flex-wrap: wrap;
     align-self: start;
 }
 
@@ -792,10 +797,11 @@ select:focus { border-color: var(--accent); }
 /* ── Responsive ──────────────────────────────────────────────────────── */
 
 @media (max-width: 1400px) {
-    .overview-grid { grid-template-columns: 240px 360px minmax(520px, 1fr); }
+    .overview-grid { grid-template-columns: 320px 340px minmax(520px, 1fr); }
 }
 
 @media (max-width: 1100px) {
+    #tab-overview.active { height: auto; overflow: visible; }
     .overview-grid {
         grid-template-columns: 1fr;
         grid-template-rows: auto;
@@ -806,6 +812,8 @@ select:focus { border-color: var(--accent); }
             "charts-top"
             "news"
             "charts-bottom";
+        height: auto;
+        max-height: none;
     }
     .overview-panel-keydates,
     .overview-panel-spot { align-self: stretch; }
@@ -1156,4 +1164,28 @@ select:focus { border-color: var(--accent); }
     padding: 0.25rem 0.4rem;
     font-size: 0.7rem;
     font-family: var(--font-sans);
+}
+
+.overview-badges .stock-badge {
+    flex: 1 1 0;
+    min-width: 0;
+}
+
+.spot-perf-header {
+    display: grid;
+    grid-template-columns: 3px minmax(128px, 1fr) minmax(54px, auto) 34px 40px 40px;
+    gap: 0.35rem;
+    align-items: end;
+    margin-bottom: 0.25rem;
+    padding: 0 0.2rem;
+}
+
+.spot-perf-header .spot-perf-label {
+    justify-self: end;
+    text-align: right;
+    min-width: 40px;
+}
+
+.spot-prices-content .spot-category {
+    grid-column: 1 / -1;
 }

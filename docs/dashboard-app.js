@@ -99,8 +99,7 @@ function renderOverviewStockBadges() {
     const robPct = rob.one_month_ago ? ((rob.current - rob.one_month_ago) / rob.one_month_ago * 100).toFixed(1) : '0.0';
     const robUp = parseFloat(robPct) >= 0;
 
-    el.innerHTML = `<div class="overview-badges-inner">
-        <div class="stock-badge" style="border-left:3px solid ${COLORS.accent};">
+    el.innerHTML = `<div class="stock-badge" style="border-left:3px solid ${COLORS.accent};">
             <span class="stock-badge-label">Arabica ICE US</span>
             <span class="stock-badge-value">${fmtInt(arab.current || 0)} <span style="font-size:0.6rem;font-weight:400;color:var(--text-muted);">bags</span></span>
             <span class="stock-badge-sub"><span class="${arabUp ? 'up' : 'down'}">${arabUp ? '+' : ''}${arabPct}%</span> 1M</span>
@@ -109,8 +108,7 @@ function renderOverviewStockBadges() {
             <span class="stock-badge-label">Robusta ICE EU</span>
             <span class="stock-badge-value">${fmtInt(rob.current || 0)} <span style="font-size:0.6rem;font-weight:400;color:var(--text-muted);">lots</span></span>
             <span class="stock-badge-sub"><span class="${robUp ? 'up' : 'down'}">${robUp ? '+' : ''}${robPct}%</span> 1M</span>
-        </div>
-    </div>`;
+        </div>`;
 }
 
 function renderAssetStats() {
@@ -294,6 +292,7 @@ function renderSpotPrices() {
     ];
 
     let html = `<div class="spot-perf-header">
+        <span aria-hidden="true"></span><span aria-hidden="true"></span><span aria-hidden="true"></span><span aria-hidden="true"></span>
         <span class="spot-perf-label">1M</span>
         <span class="spot-perf-label">YTD</span>
     </div>`;
