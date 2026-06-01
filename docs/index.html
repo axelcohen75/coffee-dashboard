@@ -39,45 +39,27 @@
 <!-- ═══════════════════════════════════════════════════════════════════════ -->
 <div id="tab-overview" class="tab-panel active">
     <div class="overview-grid">
-        <!-- LEFT: Stock Badges + Key Dates + News (wide) -->
-        <div class="overview-left">
-            <div class="overview-stock-row" id="overview-stock-badges"></div>
+        <div class="overview-badges" id="overview-stock-badges"></div>
 
-            <div class="panel overview-panel-keydates">
-                <div class="panel-header">
-                    <span class="panel-title">KEY DATES</span>
-                    <span class="panel-subtitle">Economic Calendar</span>
-                </div>
-                <div class="panel-body panel-body-compact" id="key-dates"></div>
+        <div class="panel overview-panel-keydates overview-top-panel">
+            <div class="panel-header">
+                <span class="panel-title">KEY DATES</span>
+                <span class="panel-subtitle">Economic Calendar</span>
             </div>
+            <div class="panel-body panel-body-compact" id="key-dates"></div>
+        </div>
 
-            <div class="panel overview-panel-fill overview-panel-news">
-                <div class="panel-header">
-                    <span class="panel-title">COFFEE NEWS</span>
-                    <span class="panel-subtitle">Latest headlines</span>
-                </div>
-                <div class="panel-body news-list" id="news-list">
-                    <div class="loading">Loading…</div>
-                </div>
+        <div class="panel overview-panel-spot overview-top-panel">
+            <div class="panel-header">
+                <span class="panel-title">SPOT PRICES</span>
+                <span class="panel-subtitle">Click to chart</span>
+            </div>
+            <div class="panel-body spot-prices-body" id="spot-prices">
+                <div class="loading">Loading…</div>
             </div>
         </div>
 
-        <!-- MIDDLE: Spot Prices -->
-        <div class="overview-mid">
-            <div class="panel overview-panel-fill overview-panel-spot">
-                <div class="panel-header">
-                    <span class="panel-title">SPOT PRICES</span>
-                    <span class="panel-subtitle">Click to chart</span>
-                </div>
-                <div class="panel-body spot-prices-body" id="spot-prices">
-                    <div class="loading">Loading…</div>
-                </div>
-            </div>
-        </div>
-
-        <!-- RIGHT: Charts stacked vertically -->
-        <div class="overview-main">
-            <!-- Price Evolution + Asset Stats side by side -->
+        <div class="overview-charts-top overview-top-panel">
             <div class="chart-stats-row">
                 <div class="panel" style="flex:1;min-width:0;">
                     <div class="panel-header">
@@ -109,9 +91,20 @@
                     <div class="panel-body" id="asset-stats-body"></div>
                 </div>
             </div>
+        </div>
 
-            <!-- Futures Markets: toggle drives spreads + term structure -->
-            <div class="panel overview-futures-panel" style="margin-top:0.8rem;">
+        <div class="panel overview-panel-news">
+            <div class="panel-header">
+                <span class="panel-title">COFFEE NEWS</span>
+                <span class="panel-subtitle">Latest headlines</span>
+            </div>
+            <div class="panel-body news-list" id="news-list">
+                <div class="loading">Loading…</div>
+            </div>
+        </div>
+
+        <div class="overview-charts-bottom">
+            <div class="panel overview-futures-panel">
                 <div class="panel-header">
                     <div>
                         <span class="panel-title">FUTURES MARKETS</span>

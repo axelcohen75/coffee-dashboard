@@ -97,7 +97,7 @@ function renderOverviewStockBadges() {
     const robPct = rob.one_month_ago ? ((rob.current - rob.one_month_ago) / rob.one_month_ago * 100).toFixed(1) : '0.0';
     const robUp = parseFloat(robPct) >= 0;
 
-    el.innerHTML = `<div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+    el.innerHTML = `<div class="overview-badges-inner">
         <div class="stock-badge" style="border-left:3px solid ${COLORS.accent};">
             <span class="stock-badge-label">Arabica ICE US</span>
             <span class="stock-badge-value">${fmtInt(arab.current || 0)} <span style="font-size:0.6rem;font-weight:400;color:var(--text-muted);">bags</span></span>

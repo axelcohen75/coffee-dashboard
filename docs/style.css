@@ -134,45 +134,103 @@ body {
 
 .overview-grid {
     display: grid;
-    grid-template-columns: 340px 520px minmax(520px, 1fr);
-    grid-template-rows: auto;
-    gap: 0.8rem;
+    grid-template-columns: 260px 400px minmax(560px, 1fr);
+    grid-template-rows: auto auto minmax(0, 1fr);
+    grid-template-areas:
+        "badges badges ."
+        "keydates spot charts-top"
+        "news news charts-bottom";
+    gap: 0.6rem;
     min-height: calc(100vh - 50px);
+    align-items: stretch;
 }
 
-.overview-left,
-.overview-mid {
+.overview-badges {
+    grid-area: badges;
     min-width: 0;
     display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    align-items: stretch;
+}
+.overview-panel-keydates { grid-area: keydates; min-width: 0; }
+.overview-panel-spot { grid-area: spot; min-width: 0; }
+.overview-charts-top { grid-area: charts-top; min-width: 0; }
+.overview-panel-news { grid-area: news; min-width: 0; min-height: 0; }
+.overview-charts-bottom { grid-area: charts-bottom; min-width: 0; min-height: 0; }
+
+.overview-top-panel {
+    display: flex;
     flex-direction: column;
-    gap: 0.6rem;
+    min-height: 0;
+    height: 100%;
+}
+
+.overview-top-panel > .panel-body {
+    flex: 1 1 auto;
     min-height: 0;
 }
 
-.overview-stock-row {
-    flex-shrink: 0;
+.overview-charts-top {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    height: 100%;
 }
 
-.overview-panel-keydates {
-    flex-shrink: 0;
+.overview-charts-top .chart-stats-row {
+    flex: 1 1 auto;
+    min-height: 0;
+    height: 100%;
 }
 
-.overview-panel-fill {
-    flex: 1 1 0;
+.overview-charts-top .chart-stats-row > .panel:first-child {
     display: flex;
     flex-direction: column;
     min-height: 0;
 }
 
-.overview-panel-fill > .panel-body {
-    flex: 1 1 0;
-    min-height: 0;
+.overview-charts-top .chart-stats-row > .panel:first-child > .panel-body {
+    flex: 1 1 auto;
     display: flex;
     flex-direction: column;
+    min-height: 0;
 }
 
-.overview-panel-news > .news-list {
+.overview-charts-top #chart-price-evolution {
+    flex: 1 1 auto;
+    min-height: 280px;
+}
+
+.overview-panel-news {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+
+.overview-panel-news > .panel-body.news-list {
+    flex: 1 1 auto;
+    min-height: 0;
     overflow-y: auto;
+}
+
+.overview-charts-bottom {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+
+.overview-charts-bottom > .overview-futures-panel {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.overview-charts-bottom > .overview-futures-panel > .futures-section-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: auto;
 }
 
 .spot-prices-body {
@@ -722,21 +780,28 @@ select:focus { border-color: var(--accent); }
 /* ── Responsive ──────────────────────────────────────────────────────── */
 
 @media (max-width: 1600px) {
-    .overview-grid { grid-template-columns: 340px 300px 1fr; }
+    .overview-grid { grid-template-columns: 240px 360px 1fr; }
 }
 
 @media (max-width: 1400px) {
-    .overview-grid { grid-template-columns: 320px 280px 1fr; }
+    .overview-grid { grid-template-columns: 220px 340px 1fr; }
 }
 
 @media (max-width: 1200px) {
-    .overview-grid { grid-template-columns: 300px 1fr; }
-    .overview-mid { display: none; }
+    .overview-grid {
+        grid-template-columns: 1fr;
+        grid-template-areas:
+            "badges"
+            "spot"
+            "charts-top"
+            "news"
+            "charts-bottom";
+    }
+    .overview-panel-keydates { display: none; }
 }
 
 @media (max-width: 900px) {
     .overview-grid { grid-template-columns: 1fr; }
-    .overview-mid { display: block; }
     .two-col, .three-col, .four-col, .col-2-1, .col-3-1 { grid-template-columns: 1fr; }
     .nav-tabs { overflow-x: auto; }
 }
@@ -873,7 +938,8 @@ select:focus { border-color: var(--accent); }
 
 .chart-stats-row {
     display: flex;
-    gap: 0.8rem;
+    gap: 0.6rem;
+    align-items: stretch;
 }
 
 .asset-stats-panel {
@@ -964,14 +1030,14 @@ select:focus { border-color: var(--accent); }
 /* ── Spot/futures overview panels ─────────────────────────────────────── */
 .spot-row {
     display: grid;
-    grid-template-columns: 3px minmax(190px, 1fr) minmax(64px, auto) 42px 46px 46px;
+    grid-template-columns: 3px minmax(128px, 1fr) minmax(54px, auto) 34px 40px 40px;
     gap: 0.35rem;
     align-items: center;
 }
 .spot-row.selected { border-left: none; box-shadow: inset 3px 0 0 var(--accent); }
 .spot-name { min-width: 0; overflow: visible; text-overflow: clip; }
 .spot-price, .spot-unit, .spot-perf { justify-self: end; }
-.spot-row.spread { grid-template-columns: 3px minmax(230px, 1fr) minmax(68px, auto) 42px 46px 46px; }
+.spot-row.spread { grid-template-columns: 3px minmax(150px, 1fr) minmax(58px, auto) 34px 40px 40px; }
 .spot-category-spreads { margin-top: 0.55rem; letter-spacing: 1.8px; }
 .futures-market-card {
     background: rgba(0,184,148,0.08);
@@ -997,9 +1063,9 @@ select:focus { border-color: var(--accent); }
 .contract-spec-grid span { color:var(--text-muted); }
 .contract-spec-grid b { color:var(--text-secondary); font-weight:600; }
 @media (max-width: 1400px) {
-    .overview-grid { grid-template-columns: 320px 480px minmax(500px, 1fr); }
-    .spot-row { grid-template-columns: 3px minmax(165px, 1fr) minmax(62px, auto) 38px 42px 42px; }
-    .spot-row.spread { grid-template-columns: 3px minmax(210px, 1fr) minmax(66px, auto) 38px 42px 42px; }
+    .overview-grid { grid-template-columns: 240px 380px minmax(520px, 1fr); }
+    .spot-row { grid-template-columns: 3px minmax(145px, 1fr) minmax(58px, auto) 36px 40px 40px; }
+    .spot-row.spread { grid-template-columns: 3px minmax(180px, 1fr) minmax(62px, auto) 36px 40px 40px; }
 }
 /* ── Futures section (overview right column) ─────────────────────────── */
 .overview-futures-panel .panel-body.futures-section-body { padding: 0.65rem 0.75rem 0.75rem; }
@@ -1032,11 +1098,6 @@ select:focus { border-color: var(--accent); }
     .futures-section-top { grid-template-columns: 1fr; }
 }
 
-/* ── Overview column alignment ─────────────────────────────────────────── */
-.overview-grid {
-    align-items: stretch;
-}
-
 .overview-panel-news .news-item:last-child {
     border-bottom: none;
 }
@@ -1049,19 +1110,20 @@ select:focus { border-color: var(--accent); }
     flex-shrink: 0;
 }
 
-.overview-panel-spot .spot-prices-content {
-    flex: 1 1 auto;
-}
-
 @media (max-width: 1100px) {
-    .overview-left,
-    .overview-mid {
-        min-height: auto;
+    .overview-grid {
+        grid-template-columns: 1fr;
+        grid-template-areas:
+            "badges"
+            "keydates"
+            "spot"
+            "charts-top"
+            "news"
+            "charts-bottom";
     }
-    .overview-panel-fill {
-        flex: none;
-    }
-    .overview-panel-news > .news-list {
+    .overview-panel-news > .panel-body.news-list {
         max-height: 420px;
     }
 }
+
+.overview-badges-inner { display: contents; }
