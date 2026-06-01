@@ -134,10 +134,10 @@ body {
 
 .overview-grid {
     display: grid;
-    grid-template-columns: 260px 400px minmax(560px, 1fr);
-    grid-template-rows: auto auto minmax(0, 1fr);
+    grid-template-columns: 260px 380px minmax(580px, 1fr);
+    grid-template-rows: auto auto minmax(320px, 1fr);
     grid-template-areas:
-        "badges badges ."
+        "badges badges charts-top"
         "keydates spot charts-top"
         "news news charts-bottom";
     gap: 0.6rem;
@@ -147,65 +147,32 @@ body {
 
 .overview-badges {
     grid-area: badges;
-    min-width: 0;
     display: flex;
     gap: 0.5rem;
     flex-wrap: wrap;
-    align-items: stretch;
-}
-.overview-panel-keydates { grid-area: keydates; min-width: 0; }
-.overview-panel-spot { grid-area: spot; min-width: 0; }
-.overview-charts-top { grid-area: charts-top; min-width: 0; }
-.overview-panel-news { grid-area: news; min-width: 0; min-height: 0; }
-.overview-charts-bottom { grid-area: charts-bottom; min-width: 0; min-height: 0; }
-
-.overview-top-panel {
-    display: flex;
-    flex-direction: column;
-    min-height: 0;
-    height: 100%;
 }
 
-.overview-top-panel > .panel-body {
-    flex: 1 1 auto;
-    min-height: 0;
+.overview-panel-keydates {
+    grid-area: keydates;
+    align-self: end;
+}
+
+.overview-panel-spot {
+    grid-area: spot;
+    align-self: end;
 }
 
 .overview-charts-top {
-    display: flex;
-    flex-direction: column;
-    min-height: 0;
-    height: 100%;
-}
-
-.overview-charts-top .chart-stats-row {
-    flex: 1 1 auto;
-    min-height: 0;
-    height: 100%;
-}
-
-.overview-charts-top .chart-stats-row > .panel:first-child {
-    display: flex;
-    flex-direction: column;
-    min-height: 0;
-}
-
-.overview-charts-top .chart-stats-row > .panel:first-child > .panel-body {
-    flex: 1 1 auto;
-    display: flex;
-    flex-direction: column;
-    min-height: 0;
-}
-
-.overview-charts-top #chart-price-evolution {
-    flex: 1 1 auto;
-    min-height: 280px;
+    grid-area: charts-top;
+    min-width: 0;
 }
 
 .overview-panel-news {
+    grid-area: news;
     display: flex;
     flex-direction: column;
     min-height: 0;
+    overflow: hidden;
 }
 
 .overview-panel-news > .panel-body.news-list {
@@ -215,9 +182,11 @@ body {
 }
 
 .overview-charts-bottom {
+    grid-area: charts-bottom;
+    min-width: 0;
+    min-height: 0;
     display: flex;
     flex-direction: column;
-    min-height: 0;
 }
 
 .overview-charts-bottom > .overview-futures-panel {
@@ -227,19 +196,16 @@ body {
     flex-direction: column;
 }
 
-.overview-charts-bottom > .overview-futures-panel > .futures-section-body {
+.overview-charts-bottom .futures-section-body {
     flex: 1 1 auto;
     min-height: 0;
-    overflow: auto;
-}
-
-.spot-prices-body {
-    justify-content: flex-start;
 }
 
 .panel-body-compact {
     padding: 0.45rem 0.8rem;
 }
+
+.overview-badges-inner { display: contents; }
 
 .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 0.8rem; }
 .three-col { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.8rem; }
@@ -779,29 +745,28 @@ select:focus { border-color: var(--accent); }
 
 /* ── Responsive ──────────────────────────────────────────────────────── */
 
-@media (max-width: 1600px) {
-    .overview-grid { grid-template-columns: 240px 360px 1fr; }
-}
-
 @media (max-width: 1400px) {
-    .overview-grid { grid-template-columns: 220px 340px 1fr; }
+    .overview-grid { grid-template-columns: 240px 360px minmax(520px, 1fr); }
 }
 
-@media (max-width: 1200px) {
+@media (max-width: 1100px) {
     .overview-grid {
         grid-template-columns: 1fr;
+        grid-template-rows: auto;
         grid-template-areas:
             "badges"
+            "keydates"
             "spot"
             "charts-top"
             "news"
             "charts-bottom";
     }
-    .overview-panel-keydates { display: none; }
+    .overview-panel-keydates,
+    .overview-panel-spot { align-self: stretch; }
+    .overview-panel-news > .panel-body.news-list { max-height: 360px; }
 }
 
 @media (max-width: 900px) {
-    .overview-grid { grid-template-columns: 1fr; }
     .two-col, .three-col, .four-col, .col-2-1, .col-3-1 { grid-template-columns: 1fr; }
     .nav-tabs { overflow-x: auto; }
 }
@@ -1062,11 +1027,6 @@ select:focus { border-color: var(--accent); }
 .contract-spec-grid { display:grid; grid-template-columns: 92px 1fr; gap:0.32rem 0.65rem; font-size:0.68rem; }
 .contract-spec-grid span { color:var(--text-muted); }
 .contract-spec-grid b { color:var(--text-secondary); font-weight:600; }
-@media (max-width: 1400px) {
-    .overview-grid { grid-template-columns: 240px 380px minmax(520px, 1fr); }
-    .spot-row { grid-template-columns: 3px minmax(145px, 1fr) minmax(58px, auto) 36px 40px 40px; }
-    .spot-row.spread { grid-template-columns: 3px minmax(180px, 1fr) minmax(62px, auto) 36px 40px 40px; }
-}
 /* ── Futures section (overview right column) ─────────────────────────── */
 .overview-futures-panel .panel-body.futures-section-body { padding: 0.65rem 0.75rem 0.75rem; }
 .futures-section-top {
@@ -1097,33 +1057,3 @@ select:focus { border-color: var(--accent); }
 @media (max-width: 1400px) {
     .futures-section-top { grid-template-columns: 1fr; }
 }
-
-.overview-panel-news .news-item:last-child {
-    border-bottom: none;
-}
-
-.overview-panel-spot .spot-category:first-of-type {
-    margin-top: 0;
-}
-
-.overview-panel-spot .spot-prices-body > .spot-perf-header {
-    flex-shrink: 0;
-}
-
-@media (max-width: 1100px) {
-    .overview-grid {
-        grid-template-columns: 1fr;
-        grid-template-areas:
-            "badges"
-            "keydates"
-            "spot"
-            "charts-top"
-            "news"
-            "charts-bottom";
-    }
-    .overview-panel-news > .panel-body.news-list {
-        max-height: 420px;
-    }
-}
-
-.overview-badges-inner { display: contents; }
