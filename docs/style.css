@@ -135,9 +135,9 @@ body {
 .overview-grid {
     display: grid;
     grid-template-columns: 260px 380px minmax(580px, 1fr);
-    grid-template-rows: auto auto minmax(320px, 1fr);
+    grid-template-rows: auto minmax(360px, auto) minmax(0, 1fr);
     grid-template-areas:
-        "badges badges charts-top"
+        "badges badges ."
         "keydates spot charts-top"
         "news news charts-bottom";
     gap: 0.6rem;
@@ -150,21 +150,63 @@ body {
     display: flex;
     gap: 0.5rem;
     flex-wrap: wrap;
+    align-self: start;
 }
 
 .overview-panel-keydates {
     grid-area: keydates;
-    align-self: end;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    height: 100%;
 }
 
 .overview-panel-spot {
     grid-area: spot;
-    align-self: end;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    height: 100%;
+}
+
+.overview-panel-keydates > .panel-body,
+.overview-panel-spot > .spot-prices-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
 }
 
 .overview-charts-top {
     grid-area: charts-top;
     min-width: 0;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    height: 100%;
+}
+
+.overview-charts-top .chart-stats-row {
+    flex: 1 1 auto;
+    min-height: 0;
+    height: 100%;
+}
+
+.overview-charts-top .chart-stats-row > .panel:first-child {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+
+.overview-charts-top .chart-stats-row > .panel:first-child > .panel-body {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+
+.overview-charts-top #chart-price-evolution {
+    flex: 1 1 auto;
+    min-height: 260px;
 }
 
 .overview-panel-news {
@@ -172,6 +214,7 @@ body {
     display: flex;
     flex-direction: column;
     min-height: 0;
+    height: 100%;
     overflow: hidden;
 }
 
