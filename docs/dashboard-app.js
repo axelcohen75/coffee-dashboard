@@ -1082,7 +1082,76 @@ function getNextICODates(from, count) {
     return dates;
 }
 
-// ── News (sorted by recency) ─────────────────────────────────────────────
+// ── News (diverse sources, trading outlets prioritized) ───────────────────
+const NEWS_PRIORITY_SOURCES = ['stonex', 'barchart', 'ecom', 'sucafina'];
+const NEWS_MAX_PER_SOURCE = 2;
+const NEWS_DISPLAY_LIMIT = 12;
+const NEWS_COFFEE_KEYWORDS = ['coffee', 'arabica', 'robusta', 'café', 'cafe'];
+
+function newsExtractSource(title) {
+    const idx = title.lastIndexOf(' - ');
+    return idx >= 0 ? title.slice(idx + 3).trim().toLowerCase() : '';
+}
+
+function newsIsCoffeeRelated(article) {
+    const text = `${article.title || ''} ${article.summary || ''}`.toLowerCase();
+    return NEWS_COFFEE_KEYWORDS.some(kw => text.includes(kw));
+}
+
+function newsMatchesPriority(article, keyword) {
+    const title = (article.title || '').toLowerCase();
+    const source = newsExtractSource(article.title || '');
+    return title.includes(keyword) || source.includes(keyword);
+}
+
+function curateNewsForDisplay(articles, limit = NEWS_DISPLAY_LIMIT) {
+    if (!articles.length) return [];
+
+    const enriched = articles.map(a => {
+        let ts = 0;
+        try { ts = new Date(a.published).getTime(); } catch (e) {}
+        return { ...a, _ts: ts };
+    }).sort((a, b) => b._ts - a._ts);
+
+    const selected = [];
+    const seenTitles = new Set();
+    const sourceCounts = {};
+
+    function canAdd(article) {
+        const src = newsExtractSource(article.title || '') || 'unknown';
+        return (sourceCounts[src] || 0) < NEWS_MAX_PER_SOURCE;
+    }
+
+    function add(article) {
+        if (seenTitles.has(article.title)) return;
+        const src = newsExtractSource(article.title || '') || 'unknown';
+        selected.push(article);
+        seenTitles.add(article.title);
+        sourceCounts[src] = (sourceCounts[src] || 0) + 1;
+    }
+
+    for (const keyword of NEWS_PRIORITY_SOURCES) {
+        for (const article of enriched) {
+            if (newsMatchesPriority(article, keyword) && !seenTitles.has(article.title) && canAdd(article)) {
+                add(article);
+                break;
+            }
+        }
+    }
+
+    for (const article of enriched) {
+        if (selected.length >= limit) break;
+        if (seenTitles.has(article.title)) continue;
+        const isPriority = NEWS_PRIORITY_SOURCES.some(kw => newsMatchesPriority(article, kw));
+        if (!newsIsCoffeeRelated(article) && !isPriority) continue;
+        if (!canAdd(article)) continue;
+        add(article);
+    }
+
+    return selected.sort((a, b) => b._ts - a._ts).slice(0, limit);
+}
+
+
 
 
 function newsLeadText(article) {
@@ -1104,11 +1173,7 @@ function renderNews() {
     let news = DATA.news || [];
     if (!news.length) { el.innerHTML = '<div class="news-item">No coffee news available.</div>'; return; }
 
-    news = news.map(a => {
-        let ts = 0;
-        try { ts = new Date(a.published).getTime(); } catch(e) {}
-        return { ...a, _ts: ts };
-    }).sort((a, b) => b._ts - a._ts);
+    news = curateNewsForDisplay(news);
 
     const now = Date.now();
     news.forEach(a => {
@@ -1121,7 +1186,7 @@ function renderNews() {
     });
 
     let html = '';
-    for (const a of news.slice(0, 8)) {
+    for (const a of news) {
         const summary = newsLeadText(a);
         html += `
         <div class="news-item">

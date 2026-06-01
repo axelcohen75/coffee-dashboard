@@ -22,6 +22,7 @@ import yfinance as yf
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
+from scripts.news_curation import curate_news_articles, extract_source
 from scripts.news_helpers import enrich_news_articles
 from utils.conversions import LBS_PER_SACA, USD_T_TO_CENTS_LB
 
@@ -803,6 +804,7 @@ def fetch_news() -> list[dict]:
         "https://news.google.com/rss/search?q=brazil+coffee+crop+harvest+when:14d&hl=en-US&gl=US&ceid=US:en",
         "https://news.google.com/rss/search?q=ICE+coffee+commodity+when:7d&hl=en-US&gl=US&ceid=US:en",
         "https://news.google.com/rss/search?q=coffee+price+StoneX+ECOM+Sucafina+when:14d&hl=en-US&gl=US&ceid=US:en",
+        "https://news.google.com/rss/search?q=coffee+price+Barchart+when:14d&hl=en-US&gl=US&ceid=US:en",
         "https://news.google.com/rss/search?q=%22coffee+futures%22+when:3d&hl=en-US&gl=US&ceid=US:en",
         "https://news.google.com/rss/search?q=cafe+arabica+robusta+prix+when:7d&hl=fr-FR&gl=FR&ceid=FR:fr",
     ]
@@ -861,6 +863,7 @@ def fetch_news() -> list[dict]:
                     "published": pub,
                     "age": age,
                     "sentiment": sentiment,
+                    "source": extract_source(title).title() or "Unknown",
                 })
         except Exception:
             continue
@@ -876,8 +879,10 @@ def fetch_news() -> list[dict]:
         del a["_ts"]
 
     articles = articles[:20]
-    enrich_news_articles(articles, limit=8)
-    return articles
+    curated = curate_news_articles(articles, limit=12)
+    enrich_news_articles(curated, limit=12)
+    print(f"    {len(articles)} fetched → {len(curated)} curated (trading sources prioritized)")
+    return curated
 
 
 def fetch_polymarket() -> list[dict]:
