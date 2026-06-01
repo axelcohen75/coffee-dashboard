@@ -211,9 +211,14 @@ body {
     min-height: 0;
 }
 
+.overview-charts-top .panel-body > .horizon-bar {
+    flex-shrink: 0;
+}
+
 .overview-charts-top #chart-price-evolution {
     flex: 1 1 auto;
-    min-height: 260px;
+    min-height: 180px;
+    width: 100%;
 }
 
 .overview-panel-news {
@@ -289,6 +294,14 @@ body {
     color: var(--text-primary);
 }
 
+.panel-header > div:first-child {
+    display: flex;
+    align-items: baseline;
+    gap: 0.35rem;
+    flex-wrap: wrap;
+    min-width: 0;
+}
+
 .panel-subtitle {
     font-size: 0.65rem;
     color: var(--text-secondary);
@@ -314,53 +327,33 @@ body {
 
 .spot-table { width: 100%; }
 
-.spot-row {
-    display: flex;
-    align-items: center;
-    padding: 0.4rem 0;
-    border-bottom: 1px solid rgba(30,42,58,0.5);
-    gap: 0.3rem;
-}
-
 .spot-indicator {
     width: 3px;
     height: 20px;
     border-radius: 1px;
-    flex-shrink: 0;
 }
 
 .spot-name {
-    font-size: 0.75rem;
+    font-size: 0.74rem;
     color: var(--text-primary);
-    flex: 1 1 auto;
-    min-width: 82px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
 }
 
 .spot-price {
-    font-size: 0.85rem;
+    font-size: 0.82rem;
     font-weight: 700;
     font-family: var(--font-mono);
     color: var(--accent);
     text-align: right;
-    min-width: 62px;
 }
 
 .spot-unit {
-    font-size: 0.6rem;
+    font-size: 0.58rem;
     color: var(--text-muted);
-    min-width: 34px;
-    text-align: right;
-}
-
-.spot-change {
-    font-size: 0.65rem;
-    font-family: var(--font-mono);
-    font-weight: 600;
-    min-width: 40px;
-    text-align: right;
+    text-align: left;
+    white-space: nowrap;
 }
 
 .up { color: var(--green); }
@@ -1035,28 +1028,19 @@ select:focus { border-color: var(--accent); }
     margin-top: 0.55rem;
     letter-spacing: 1.8px;
 }
-.spot-row.spread {
-    padding-top: 0.5rem;
-    padding-bottom: 0.5rem;
-}
-.spot-row.spread .spot-name {
-    min-width: 130px;
-    font-size: 0.74rem;
-}
-.spot-row.spread .spot-price { min-width: 66px; }
-
-
 /* ── Spot/futures overview panels ─────────────────────────────────────── */
 .spot-row {
     display: grid;
-    grid-template-columns: 3px minmax(128px, 1fr) minmax(54px, auto) 34px 40px 40px;
-    gap: 0.35rem;
+    grid-template-columns: 3px 108px 64px 30px 40px 40px;
+    gap: 0.2rem 0.35rem;
     align-items: center;
+    padding: 0.34rem 0.45rem;
+    border-bottom: 1px solid rgba(30,42,58,0.5);
 }
 .spot-row.selected { border-left: none; box-shadow: inset 3px 0 0 var(--accent); }
-.spot-name { min-width: 0; overflow: visible; text-overflow: clip; }
-.spot-price, .spot-unit, .spot-perf { justify-self: end; }
-.spot-row.spread { grid-template-columns: 3px minmax(150px, 1fr) minmax(58px, auto) 34px 40px 40px; }
+.spot-price, .spot-perf { justify-self: end; text-align: right; }
+.spot-unit { justify-self: start; }
+.spot-row.spread { grid-template-columns: 3px 108px 64px 30px 40px 40px; }
 .spot-category-spreads { margin-top: 0.55rem; letter-spacing: 1.8px; }
 .futures-market-card {
     background: rgba(0,184,148,0.08);
@@ -1173,11 +1157,11 @@ select:focus { border-color: var(--accent); }
 
 .spot-perf-header {
     display: grid;
-    grid-template-columns: 3px minmax(128px, 1fr) minmax(54px, auto) 34px 40px 40px;
-    gap: 0.35rem;
+    grid-template-columns: 3px 108px 64px 30px 40px 40px;
+    gap: 0.2rem 0.35rem;
     align-items: end;
-    margin-bottom: 0.25rem;
-    padding: 0 0.2rem;
+    margin-bottom: 0.15rem;
+    padding: 0 0.45rem;
 }
 
 .spot-perf-header .spot-perf-label {

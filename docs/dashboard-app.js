@@ -12,6 +12,29 @@ let selectedFuturesMarket = 'Arabica';
 const FUTURES_CHART_HEIGHT = 280;
 const FUTURES_CHART_LAYOUT = { height: FUTURES_CHART_HEIGHT, margin: { t: 8, r: 12, l: 45, b: 32 } };
 
+function getOverviewChartHeight(chartId = 'chart-price-evolution') {
+    const el = document.getElementById(chartId);
+    if (!el) return 280;
+    const body = el.closest('.panel-body');
+    const h = (body || el).clientHeight;
+    return h > 120 ? Math.max(180, h - 4) : 280;
+}
+
+function setupPriceChartResize() {
+    const el = document.getElementById('chart-price-evolution');
+    if (!el || el._resizeObs) return;
+    el._resizeObs = true;
+    const target = el.closest('.panel-body') || el;
+    const obs = new ResizeObserver(() => {
+        const h = getOverviewChartHeight();
+        if (!el._plotlyInit || Math.abs((el._lastH || 0) - h) < 10) return;
+        el._lastH = h;
+        Plotly.relayout('chart-price-evolution', { height: h });
+    });
+    obs.observe(target);
+}
+
+
 async function init() {
     try {
         const resp = await fetch('data/market-data.json');
@@ -83,6 +106,7 @@ function renderOverview() {
     setupHorizonButtons();
     setupTermStructureCompare();
     setupSeasonalToggle();
+    setupPriceChartResize();
 }
 
 function renderOverviewStockBadges() {
@@ -547,11 +571,11 @@ function renderPriceEvolution(horizon) {
     const subtitleEl = document.getElementById('price-evo-subtitle');
     if (multiMode) {
         titleEl.textContent = 'RELATIVE PERFORMANCE';
-        subtitleEl.textContent = ' ' + selectedAssets.map(k => getAssetData(k)?.label).filter(Boolean).join(' vs ') + ' // %';
+        subtitleEl.textContent = selectedAssets.map(k => getAssetData(k)?.label).filter(Boolean).join(' vs ') + ' // %';
     } else {
         const asset = getAssetData(selectedAssets[0]);
         titleEl.textContent = 'PRICE EVOLUTION';
-        subtitleEl.textContent = ` ${asset?.label || 'KC ARABICA'} // ${asset?.unit || '¢/lb'}`;
+        subtitleEl.textContent = `${asset?.label || 'KC Arabica'} // ${asset?.unit || '¢/lb'}`;
     }
 
     if (multiMode) {
@@ -599,9 +623,13 @@ function renderPriceEvolution(horizon) {
         }
     }
 
+    const chartHeight = getOverviewChartHeight();
+    const yUnit = multiMode ? '%' : (getAssetData(selectedAssets[0])?.unit || '¢/lb');
     const layoutOverrides = {
-        height: 310,
-        yaxis: { title: multiMode ? '%' : (getAssetData(selectedAssets[0])?.unit || '¢/lb') },
+        height: chartHeight,
+        autosize: true,
+        margin: { l: 52, r: 18, t: 10, b: 34 },
+        yaxis: { title: { text: yUnit, standoff: 6 }, automargin: true },
         legend: { orientation: 'h', y: 1.02, x: 0, xanchor: 'left', font: { size: 10 } },
     };
 
@@ -619,6 +647,8 @@ function renderPriceEvolution(horizon) {
     Plotly.react('chart-price-evolution', traces, mergeLayout(layoutOverrides), PLOTLY_CONFIG);
 
     const chartEl = document.getElementById('chart-price-evolution');
+    chartEl._plotlyInit = true;
+    chartEl._lastH = chartHeight;
     if (!chartEl._clickBound) {
         chartEl._clickBound = true;
         chartEl.on('plotly_click', function(data) {
