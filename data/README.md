@@ -25,3 +25,11 @@ The former browser-side `arabica_cot.csv` fallback has been folded into the ETL:
 `cot_robusta_disaggregated.csv` directly, then writes both markets into
 `docs/data/market-data.json`. This keeps the dashboard static while avoiding
 duplicate CSV copies under `docs/data/`.
+
+## TradingView Robusta curve
+
+Robusta futures curve prices are fetched automatically by `scripts/fetch_market_data.py`
+from TradingView's delayed public scanner endpoint for ICEEUR contracts such as
+`ICEEUR:RCN2026`, `ICEEUR:RCU2026`, `ICEEUR:RCX2026`, etc. The manual
+`robusta_futures_price_history.csv` remains the fallback for historical front-month
+Robusta price history, not for the curve.

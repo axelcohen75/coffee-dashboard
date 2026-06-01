@@ -477,21 +477,38 @@ function renderPriceEvolution(horizon) {
 // ── Term Structure with date comparison ──────────────────────────────────
 
 function renderTermStructure() {
-    const kc = DATA.forward_curve.kc;
-    if (!kc || !kc.length) {
+    const kc = DATA.forward_curve.kc || [];
+    const rc = DATA.forward_curve.rc || [];
+    if (!kc.length && !rc.length) {
         document.getElementById('chart-term-structure').innerHTML =
             '<div class="loading">Forward curve not available</div>';
         return;
     }
 
-    const traces = [{
-        x: kc.map(d => d.contract),
-        y: kc.map(d => d.price),
-        name: 'KC (now)',
-        mode: 'lines+markers',
-        line: { color: COLORS.accent, width: 2.5 },
-        marker: { size: 7 },
-    }];
+    const traces = [];
+    if (kc.length) {
+        traces.push({
+            x: kc.map(d => d.contract),
+            y: kc.map(d => d.price),
+            name: 'KC Arabica (¢/lb)',
+            mode: 'lines+markers',
+            line: { color: COLORS.accent, width: 2.5 },
+            marker: { size: 7 },
+        });
+    }
+    if (rc.length) {
+        traces.push({
+            x: rc.map(d => d.delivery_month || d.contract),
+            y: rc.map(d => d.price),
+            name: 'RC Robusta ($/t)',
+            mode: 'lines+markers',
+            yaxis: 'y2',
+            line: { color: COLORS.blue, width: 2.5 },
+            marker: { size: 7 },
+            customdata: rc.map(d => [d.symbol || '', d.source || '', d.volume || 0]),
+            hovertemplate: '%{x}<br>%{y:.0f} $/t<br>%{customdata[0]}<br>Source: %{customdata[1]}<br>Volume: %{customdata[2]:,.0f}<extra>RC Robusta</extra>',
+        });
+    }
 
     const compareColors = [COLORS.orange, COLORS.purple, COLORS.yellow, COLORS.red];
     tsCompareDates.forEach((dateStr, i) => {
@@ -508,18 +525,25 @@ function renderTermStructure() {
         }
     });
 
-    let titleText = 'Term Structure';
+    let titleParts = [];
     if (kc.length >= 2) {
         const f = kc[0].price, l = kc[kc.length - 1].price;
         const structure = l > f ? 'Contango' : 'Backwardation';
         const slope = ((l / f - 1) * 100).toFixed(1);
-        titleText = `KC — ${structure} (${slope > 0 ? '+' : ''}${slope}%)`;
+        titleParts.push(`KC ${structure} (${slope > 0 ? '+' : ''}${slope}%)`);
+    }
+    if (rc.length >= 2) {
+        const f = rc[0].price, l = rc[rc.length - 1].price;
+        const structure = l > f ? 'Contango' : 'Backwardation';
+        const slope = ((l / f - 1) * 100).toFixed(1);
+        titleParts.push(`RC ${structure} (${slope > 0 ? '+' : ''}${slope}%)`);
     }
 
     Plotly.react('chart-term-structure', traces, mergeLayout({
         height: 310,
-        title: { text: titleText, font: { size: 11, color: COLORS.muted } },
-        yaxis: { title: '¢/lb' },
+        title: { text: titleParts.join(' · ') || 'KC & RC Term Structure', font: { size: 11, color: COLORS.muted } },
+        yaxis: { title: 'KC ¢/lb' },
+        yaxis2: { title: 'RC $/t', overlaying: 'y', side: 'right', showgrid: false, color: COLORS.blue },
     }), PLOTLY_CONFIG);
 }
 

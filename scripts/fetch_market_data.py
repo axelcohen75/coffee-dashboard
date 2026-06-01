@@ -33,6 +33,10 @@ MONTH_TO_INT = {
     "F": 1, "G": 2, "H": 3, "J": 4, "K": 5, "M": 6,
     "N": 7, "Q": 8, "U": 9, "V": 10, "X": 11, "Z": 12,
 }
+MONTH_LABELS = {
+    1: "Jan", 2: "Feb", 3: "Mar", 4: "Apr", 5: "May", 6: "Jun",
+    7: "Jul", 8: "Aug", 9: "Sep", 10: "Oct", 11: "Nov", 12: "Dec",
+}
 
 COFFEE_ZONES = {
     "Sul de Minas": {"lat": -21.5, "lon": -45.0},
@@ -170,6 +174,83 @@ def fetch_dxy() -> dict:
     print("  Loading DXY history…")
     return _load_two_column_history("dxy_index_history.csv", "Price")
 
+
+def _tradingview_quotes(symbols: list[str]) -> dict[str, dict]:
+    """Fetch delayed public TradingView quotes via the scanner endpoint."""
+    if not symbols:
+        return {}
+    columns = [
+        "name", "description", "close", "open", "high", "low",
+        "change", "volume", "currency", "type", "subtype", "exchange",
+    ]
+    payload = {
+        "symbols": {"tickers": symbols, "query": {"types": []}},
+        "columns": columns,
+    }
+    try:
+        resp = requests.post(
+            "https://scanner.tradingview.com/futures/scan",
+            json=payload,
+            timeout=15,
+            headers={"User-Agent": "Mozilla/5.0", "Content-Type": "application/json"},
+        )
+        if resp.status_code != 200:
+            return {}
+        result = {}
+        for row in resp.json().get("data", []):
+            values = row.get("d", [])
+            if len(values) != len(columns):
+                continue
+            result[row.get("s")] = dict(zip(columns, values))
+        return result
+    except Exception as exc:
+        print(f"    TradingView quote fetch failed: {exc}")
+        return {}
+
+
+def _tradingview_robusta_symbols(n: int = 8) -> list[dict]:
+    """Build upcoming ICEEUR Robusta contract symbols for TradingView."""
+    now = datetime.utcnow()
+    contracts = []
+    for year in [now.year, now.year + 1, now.year + 2]:
+        for code in RC_MONTHS:
+            month = MONTH_TO_INT[code]
+            if year == now.year and month < now.month:
+                continue
+            contracts.append({
+                "symbol": f"ICEEUR:RC{code}{year}",
+                "contract": f"{code}{str(year)[-2:]}",
+                "delivery_month": f"{MONTH_LABELS[month]} {year}",
+                "month": month,
+                "year": year,
+            })
+            if len(contracts) >= n:
+                return contracts
+    return contracts
+
+
+def _fetch_tradingview_robusta_curve(n: int = 8) -> list[dict]:
+    contracts = _tradingview_robusta_symbols(n)
+    quotes = _tradingview_quotes([c["symbol"] for c in contracts])
+    curve = []
+    for contract in contracts:
+        quote = quotes.get(contract["symbol"])
+        if not quote:
+            continue
+        try:
+            price = round(float(quote.get("close")), 2)
+        except (TypeError, ValueError):
+            continue
+        curve.append({
+            **contract,
+            "price": price,
+            "source": "tradingview_delayed",
+            "description": quote.get("description"),
+            "volume": quote.get("volume") or 0,
+            "change": quote.get("change"),
+        })
+    return curve
+
 # ── Seasonal ─────────────────────────────────────────────────────────────────
 
 def _seasonal(s: pd.Series) -> list[dict]:
@@ -259,26 +340,49 @@ def fetch_forward_curve(n: int = 8) -> dict:
     now = datetime.now()
     curves = {"kc": [], "rc": []}
 
-    for base, months, key in [("KC", KC_MONTHS, "kc"), ("RC", RC_MONTHS, "rc")]:
+    for year in [now.year, now.year + 1, now.year + 2]:
+        yr2 = str(year)[-2:]
+        for m in KC_MONTHS:
+            if len(curves["kc"]) >= n:
+                break
+            ticker = f"KC{m}{yr2}.NYB"
+            df = _yf(ticker, "5d")
+            if not df.empty:
+                curves["kc"].append({
+                    "contract": f"{m}{yr2}",
+                    "price": round(float(df["Close"].iloc[-1]), 2),
+                    "month": MONTH_TO_INT[m],
+                    "year": year,
+                    "source": "yfinance",
+                })
+        if len(curves["kc"]) >= n:
+            break
+
+    tv_rc = _fetch_tradingview_robusta_curve(n)
+    if tv_rc:
+        curves["rc"] = tv_rc
+        print(f"    Robusta curve: {len(tv_rc)} contracts from TradingView delayed quotes")
+    else:
+        print("    TradingView Robusta curve unavailable; trying yfinance tickers")
         for year in [now.year, now.year + 1, now.year + 2]:
             yr2 = str(year)[-2:]
-            for m in months:
-                if len(curves[key]) >= n:
+            for m in RC_MONTHS:
+                if len(curves["rc"]) >= n:
                     break
-                ticker = f"{base}{m}{yr2}.NYB"
+                ticker = f"RC{m}{yr2}.NYB"
                 df = _yf(ticker, "5d")
                 if not df.empty:
-                    curves[key].append({
+                    curves["rc"].append({
                         "contract": f"{m}{yr2}",
                         "price": round(float(df["Close"].iloc[-1]), 2),
                         "month": MONTH_TO_INT[m],
                         "year": year,
+                        "source": "yfinance",
                     })
-            if len(curves[key]) >= n:
+            if len(curves["rc"]) >= n:
                 break
 
     return curves
-
 
 def fetch_spreads() -> dict:
     print("  Fetching calendar spreads…")
