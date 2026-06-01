@@ -134,7 +134,7 @@ body {
 
 .overview-grid {
     display: grid;
-    grid-template-columns: 340px 460px minmax(520px, 1fr);
+    grid-template-columns: 340px 520px minmax(520px, 1fr);
     grid-template-rows: auto;
     gap: 0.8rem;
     min-height: calc(100vh - 50px);
@@ -927,35 +927,43 @@ select:focus { border-color: var(--accent); }
 .spot-row.spread .spot-price { min-width: 66px; }
 
 
-/* ── Spot prices width/layout override ─────────────────────────────────── */
+/* ── Spot/futures overview panels ─────────────────────────────────────── */
 .spot-row {
     display: grid;
-    grid-template-columns: 3px minmax(150px, 1fr) minmax(64px, auto) 42px 46px 46px;
+    grid-template-columns: 3px minmax(190px, 1fr) minmax(64px, auto) 42px 46px 46px;
     gap: 0.35rem;
     align-items: center;
 }
-.spot-row.selected {
-    border-left: none;
-    box-shadow: inset 3px 0 0 var(--accent);
+.spot-row.selected { border-left: none; box-shadow: inset 3px 0 0 var(--accent); }
+.spot-name { min-width: 0; overflow: visible; text-overflow: clip; }
+.spot-price, .spot-unit, .spot-perf { justify-self: end; }
+.spot-row.spread { grid-template-columns: 3px minmax(230px, 1fr) minmax(68px, auto) 42px 46px 46px; }
+.spot-category-spreads { margin-top: 0.55rem; letter-spacing: 1.8px; }
+.futures-market-card {
+    background: rgba(0,184,148,0.08);
+    border: 1px solid rgba(0,184,148,0.18);
+    border-radius: 4px;
+    padding: 0.65rem 0.75rem;
+    cursor: pointer;
 }
-.spot-name {
-    min-width: 0;
-    overflow: visible;
-    text-overflow: clip;
-}
-.spot-price, .spot-unit, .spot-perf {
-    justify-self: end;
-}
-.spot-row.spread {
-    grid-template-columns: 3px minmax(205px, 1fr) minmax(68px, auto) 42px 46px 46px;
-}
-.spot-row.spread .spot-name {
-    min-width: 0;
-    overflow: visible;
-    text-overflow: clip;
-}
+.futures-market-card:hover { background: rgba(0,184,148,0.12); }
+.futures-market-top { display:flex; justify-content:space-between; gap:1rem; align-items:flex-start; }
+.futures-label { font-size:0.58rem; color:var(--text-muted); letter-spacing:1.2px; text-transform:uppercase; }
+.futures-title { font-size:0.86rem; font-weight:700; color:var(--text-primary); margin-top:0.15rem; }
+.futures-price { font-family:var(--font-mono); font-size:1.05rem; font-weight:800; color:var(--accent); }
+.futures-unit { font-size:0.62rem; color:var(--text-muted); }
+.futures-mini-grid { display:grid; grid-template-columns: repeat(4, 1fr); gap:0.45rem; margin-top:0.65rem; }
+.futures-mini-grid div { background:rgba(10,14,26,0.45); border:1px solid rgba(30,42,58,0.7); border-radius:3px; padding:0.35rem; min-width:0; }
+.futures-mini-grid span { display:block; font-size:0.55rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.7px; }
+.futures-mini-grid b { display:block; font-family:var(--font-mono); font-size:0.72rem; margin-top:0.15rem; white-space:nowrap; }
+.futures-mini-grid em { font-style:normal; font-size:0.62rem; margin-left:0.25rem; }
+.contract-spec-card { margin-top:0.55rem; border:1px solid var(--border); border-radius:4px; padding:0.6rem 0.7rem; }
+.contract-spec-title { font-family:var(--font-mono); font-size:0.58rem; color:var(--text-muted); letter-spacing:1.2px; margin-bottom:0.45rem; }
+.contract-spec-grid { display:grid; grid-template-columns: 92px 1fr; gap:0.32rem 0.65rem; font-size:0.68rem; }
+.contract-spec-grid span { color:var(--text-muted); }
+.contract-spec-grid b { color:var(--text-secondary); font-weight:600; }
 @media (max-width: 1400px) {
-    .overview-grid { grid-template-columns: 320px 430px minmax(500px, 1fr); }
-    .spot-row { grid-template-columns: 3px minmax(135px, 1fr) minmax(62px, auto) 38px 42px 42px; }
-    .spot-row.spread { grid-template-columns: 3px minmax(190px, 1fr) minmax(66px, auto) 38px 42px 42px; }
+    .overview-grid { grid-template-columns: 320px 480px minmax(500px, 1fr); }
+    .spot-row { grid-template-columns: 3px minmax(165px, 1fr) minmax(62px, auto) 38px 42px 42px; }
+    .spot-row.spread { grid-template-columns: 3px minmax(210px, 1fr) minmax(66px, auto) 38px 42px 42px; }
 }

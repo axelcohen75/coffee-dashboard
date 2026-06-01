@@ -8,6 +8,7 @@ let tsCompareDates = [];
 let activeSpread = null;
 let selectedAssets = ['kc'];
 let selectedCotMarket = null;
+let selectedFuturesMarket = 'Arabica';
 
 async function init() {
     try {
@@ -67,6 +68,7 @@ function setupTabs() {
 function renderOverview() {
     renderOverviewStockBadges();
     renderSpotPrices();
+    renderFuturesMarket();
     renderPriceEvolution('1Y');
     renderAssetStats();
     renderTermStructure();
@@ -273,18 +275,13 @@ function computeYTDPerf(history) {
 
 function renderSpotPrices() {
     const el = document.getElementById('spot-prices');
-    const coffeeAssets = [
-        { key: 'kc', label: 'KC Arabica' },
-        { key: 'rc', label: 'RC Robusta' },
-        { key: 'rc_cl', label: 'RC (¢/lb equiv.)' },
-        { key: 'cepea', label: 'CEPEA/ESALQ' },
+    const referenceAssets = [
+        { key: 'cepea', label: 'CEPEA/ESALQ Arabica' },
+        { key: 'brl', label: 'BRL/USD (PTAX)' },
+        { key: 'dxy', label: 'DXY (Dollar Index)' },
     ];
     const spreadAssets = [
         { key: 'arb_rob', label: 'Arabica-Robusta Spread' },
-    ];
-    const fxAssets = [
-        { key: 'brl', label: 'BRL/USD (PTAX)' },
-        { key: 'dxy', label: 'DXY (Dollar Index)' },
     ];
 
     let html = `<div style="display:flex;justify-content:flex-end;gap:0.5rem;margin-bottom:0.3rem;padding:0 0.2rem;">
@@ -292,14 +289,118 @@ function renderSpotPrices() {
         <span class="spot-perf-label">YTD</span>
     </div>`;
 
-    html += `<div class="spot-category">COFFEE</div>`;
-    html += _renderSpotRows(coffeeAssets);
+    html += `<div class="spot-category">SPOT / MACRO REFERENCES</div>`;
+    html += _renderSpotRows(referenceAssets, 'reference');
     html += `<div class="spot-category spot-category-spreads">SPREADS</div>`;
     html += _renderSpotRows(spreadAssets, 'spread');
-    html += `<div class="spot-category" style="margin-top:0.4rem;">FX</div>`;
-    html += _renderSpotRows(fxAssets);
 
     el.innerHTML = html;
+}
+
+function renderFuturesMarket() {
+    renderFuturesMarketToggle();
+    const market = getFuturesMarketPayload(selectedFuturesMarket);
+    const el = document.getElementById('futures-market-body');
+    if (!market || !market.front) {
+        el.innerHTML = '<div class="loading">Futures market data unavailable.</div>';
+        return;
+    }
+
+    const perf = market.performance || {};
+    const curve = market.curve || [];
+    const front = curve[0] || {};
+    const second = curve[1] || {};
+    const roll = estimateContractRoll(front, market.key);
+    const nextSpread = second.price && front.price ? second.price - front.price : null;
+
+    el.innerHTML = `
+        <div class="futures-market-card" onclick="selectFuturesMarket('${selectedFuturesMarket}', true)">
+            <div class="futures-market-top">
+                <div>
+                    <div class="futures-label">${market.exchange}</div>
+                    <div class="futures-title">${market.name}</div>
+                </div>
+                <div style="text-align:right;">
+                    <div class="futures-price">${fmtNum(market.front, market.unit === '$/t' ? 0 : 2)}</div>
+                    <div class="futures-unit">${market.unit}</div>
+                </div>
+            </div>
+            <div class="futures-mini-grid">
+                <div><span>1M</span><b class="${pctClass(perf['1m'])}">${fmtPct(perf['1m'])}</b></div>
+                <div><span>YTD</span><b class="${pctClass(perf.ytd)}">${fmtPct(perf.ytd)}</b></div>
+                <div><span>Front</span><b>${front.contract || market.symbol}</b></div>
+                <div><span>Next</span><b>${second.contract || '—'} ${nextSpread == null ? '' : `<em class="${pctClass(nextSpread)}">${nextSpread >= 0 ? '+' : ''}${fmtNum(nextSpread, 1)}</em>`}</b></div>
+            </div>
+        </div>
+        <div class="contract-spec-card">
+            <div class="contract-spec-title">CONTRACT SPECS</div>
+            <div class="contract-spec-grid">
+                <span>Symbol</span><b>${market.symbol}</b>
+                <span>Contract size</span><b>${market.contractSize}</b>
+                <span>Tick</span><b>${market.tick}</b>
+                <span>Months</span><b>${market.months}</b>
+                <span>Curve source</span><b>${market.curveSource}</b>
+                <span>Roll watch</span><b>${roll}</b>
+            </div>
+        </div>`;
+}
+
+function renderFuturesMarketToggle() {
+    const el = document.getElementById('futures-market-toggle');
+    if (!el) return;
+    el.innerHTML = ['Arabica', 'Robusta'].map(m => `
+        <button class="horizon-btn ${m === selectedFuturesMarket ? 'active' : ''}" onclick="selectFuturesMarket('${m}', true)">${m.toUpperCase()}</button>
+    `).join('');
+}
+
+function selectFuturesMarket(market, updateChart = false) {
+    selectedFuturesMarket = market;
+    if (updateChart) {
+        selectedAssets = [market === 'Robusta' ? 'rc' : 'kc'];
+    }
+    renderFuturesMarket();
+    renderSpotPrices();
+    if (updateChart) {
+        renderPriceEvolution(document.querySelector('.horizon-btn.active')?.dataset.horizon || '1Y');
+        renderAssetStats();
+    }
+}
+
+function getFuturesMarketPayload(market) {
+    if (market === 'Robusta') {
+        const rc = DATA.futures?.rc || {};
+        const curve = DATA.forward_curve?.rc || [];
+        return {
+            key: 'rc', name: 'RC Robusta Coffee Futures', symbol: 'ICEEUR:RC1!', exchange: 'ICE Futures Europe',
+            unit: '$/t', front: rc.front, history: rc.history, performance: rc.performance || {}, curve,
+            contractSize: '10 metric tonnes', tick: '$1/t = $10', months: 'Jan, Mar, May, Jul, Sep, Nov',
+            curveSource: curve[0]?.source === 'tradingview_delayed' ? 'TradingView delayed' : (curve[0]?.source || rc.source || 'fallback'),
+        };
+    }
+    const kc = DATA.futures?.kc || {};
+    const curve = DATA.forward_curve?.kc || [];
+    return {
+        key: 'kc', name: 'KC Arabica Coffee Futures', symbol: 'KC=F / ICE KC', exchange: 'ICE Futures U.S.',
+        unit: '¢/lb', front: kc.front, history: kc.history, performance: kc.performance || {}, curve,
+        contractSize: '37,500 lbs', tick: '0.05¢/lb = $18.75', months: 'Mar, May, Jul, Sep, Dec',
+        curveSource: curve[0]?.source || 'Yahoo Finance',
+    };
+}
+
+function estimateContractRoll(frontContract, marketKey) {
+    if (!frontContract?.month || !frontContract?.year) return 'Check exchange calendar';
+    const daysBefore = marketKey === 'rc' ? 5 : 10;
+    const d = businessDaysBefore(new Date(frontContract.year, frontContract.month - 1, 1), daysBefore);
+    return `${d.toISOString().slice(0, 10)} est. (${daysBefore} bd before delivery month)`;
+}
+
+function businessDaysBefore(date, n) {
+    const d = new Date(date);
+    while (n > 0) {
+        d.setDate(d.getDate() - 1);
+        if (d.getDay() !== 0 && d.getDay() !== 6) n -= 1;
+    }
+    return d;
 }
 
 function _renderSpotRows(assets, rowClass = '') {
