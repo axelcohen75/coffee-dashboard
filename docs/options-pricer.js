@@ -460,8 +460,15 @@ function renderOptions() {
 
         <!-- MAIN CHARTS -->
         <div class="opt-main">
-            <!-- PER-LEG GREEKS DETAIL TABLE -->
-            <div class="opt-portfolio-detail" id="opt-portfolio-detail"></div>
+            <div class="opt-portfolio-panel">
+                <div class="opt-portfolio-header">
+                    <div class="opt-panel-title">PORTFOLIO LEGS <span class="opt-badge" id="opt-leg-count">0</span></div>
+                </div>
+                <div id="opt-legs-list" class="opt-legs-list">
+                    <div class="opt-empty">No positions yet.</div>
+                </div>
+                <div class="opt-portfolio-detail" id="opt-portfolio-detail"></div>
+            </div>
             <div class="opt-chart-grid">
                 <div class="opt-chart-card">
                     <div class="opt-chart-title">PAYOFF DIAGRAM</div>
@@ -771,19 +778,6 @@ function _injectOptionsCSS() {
         font-weight: 700;
         margin-left: 4px;
     }
-    .opt-legs-list { max-height: 180px; overflow-y: auto; }
-    .opt-leg-item {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 4px 8px;
-        margin-bottom: 3px;
-        background: var(--bg-primary);
-        border-radius: 4px;
-        border: 1px solid var(--border);
-        font-size: 0.66rem;
-        font-family: var(--font-mono);
-    }
     .opt-leg-long { border-left: 3px solid var(--accent); }
     .opt-leg-short { border-left: 3px solid var(--red); }
     .opt-leg-remove {
@@ -954,10 +948,48 @@ function _injectOptionsCSS() {
     .var-table .var-val { font-weight: 700; }
     .var-table .var-loss { color: var(--red); }
     .var-table .var-gain { color: var(--accent); }
-    .opt-portfolio-detail {
+    .opt-portfolio-panel {
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 10px 12px;
         margin-bottom: 12px;
     }
+    .opt-portfolio-header {
+        margin-bottom: 8px;
+    }
+    .opt-legs-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin-bottom: 8px;
+        max-height: none;
+        overflow: visible;
+    }
+    .opt-legs-list .opt-empty {
+        width: 100%;
+    }
+    .opt-leg-item {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 4px 8px;
+        border-radius: 4px;
+        background: rgba(10,14,26,0.45);
+        border: 1px solid var(--border);
+        font-size: 0.68rem;
+        font-family: var(--font-mono);
+        white-space: nowrap;
+    }
+    .opt-portfolio-detail {
+        margin-bottom: 0;
+    }
     .opt-portfolio-detail:empty { display: none; }
+    .opt-portfolio-panel:has(.opt-portfolio-detail:not(:empty)) .opt-legs-list {
+        margin-bottom: 10px;
+        padding-bottom: 8px;
+        border-bottom: 1px solid rgba(30,42,58,0.45);
+    }
     .opt-greeks-detail-table {
         width: 100%;
         border-collapse: collapse;
@@ -1136,8 +1168,12 @@ function _removeLeg(idx) {
 function _renderLegs() {
     const list = document.getElementById('opt-legs-list');
     const badge = document.getElementById('opt-leg-count');
-    if (!list) return;
     if (badge) badge.textContent = OPT.legs.length;
+
+    if (!list) {
+        _renderPortfolioDetail();
+        return;
+    }
 
     if (OPT.legs.length === 0) {
         list.innerHTML = '<div class="opt-empty">No positions yet.</div>';
@@ -1190,7 +1226,7 @@ function _renderPortfolioDetail() {
     });
 
     let html = `<div class="opt-risk-card">
-        <div class="opt-risk-card-title">LEG GREEKS DETAIL</div>
+        <div class="opt-risk-card-title">GREEKS BY LEG</div>
         <table class="opt-greeks-detail-table">
         <thead><tr>
             <th>Leg</th><th>Value</th><th>Delta</th><th>Gamma</th><th>Vega</th><th>Theta/d</th><th>Rho</th>
