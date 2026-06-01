@@ -22,11 +22,11 @@ import yfinance as yf
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
+from utils.conversions import LBS_PER_SACA, USD_T_TO_CENTS_LB
+
 OUT = ROOT / "docs" / "data" / "market-data.json"
 
 # ── Constants ────────────────────────────────────────────────────────────────
-USD_T_TO_CENTS_LB = 100 / 2204.62
-LBS_PER_SACA = 132.277
 KC_MONTHS = ["H", "K", "N", "U", "Z"]
 RC_MONTHS = ["F", "H", "K", "N", "U", "X"]
 MONTH_TO_INT = {
@@ -110,7 +110,7 @@ def _euro_float(val) -> float:
 
 
 def _load_rc_csv() -> pd.DataFrame:
-    for fname in ("rc_history.csv", "rc_front.csv"):
+    for fname in ("robusta_futures_price_history.csv",):
         path = DATA_DIR / fname
         if not path.exists():
             continue
@@ -497,134 +497,155 @@ def fetch_weather() -> dict:
     return zones
 
 
-def fetch_cot() -> dict:
-    print("  Fetching CFTC COT data…")
-    import io
-    import zipfile
-
-    COFFEE_CODE = "083731"
-    frames = []
-
-    urls = [
-        "https://www.cftc.gov/dea/newcot/f_disagg.txt",
-    ]
-    for year in range(2025, 2019, -1):
-        urls.append(f"https://www.cftc.gov/files/dea/history/fut_disagg_txt_{year}.zip")
-
-    for url in urls:
-        try:
-            r = requests.get(url, timeout=30)
-            if r.status_code != 200:
-                continue
-
-            if url.endswith(".zip"):
-                with zipfile.ZipFile(io.BytesIO(r.content)) as z:
-                    for name in z.namelist():
-                        if name.endswith(".txt"):
-                            content = z.read(name).decode("utf-8", errors="replace")
-                            df = pd.read_csv(io.StringIO(content), low_memory=False)
-                            break
-                    else:
-                        continue
-            else:
-                df = pd.read_csv(io.StringIO(r.text), low_memory=False)
-
-            cftc_col = None
-            for col in df.columns:
-                if "CFTC_Commodity_Code" in col:
-                    cftc_col = col
-                    break
-            if cftc_col is None:
-                for col in df.columns:
-                    if "commodity" in col.lower() and "code" in col.lower():
-                        cftc_col = col
-                        break
-            if cftc_col is None:
-                continue
-
-            df[cftc_col] = df[cftc_col].astype(str).str.strip()
-            coffee = df[df[cftc_col] == COFFEE_CODE].copy()
-            if coffee.empty:
-                continue
-
-            date_col = None
-            for col in coffee.columns:
-                if "report_date" in col.lower() or "as_of_date" in col.lower():
-                    date_col = col
-                    break
-            if date_col is None:
-                continue
-
-            def _find(keywords):
-                for c in coffee.columns:
-                    cl = c.lower().replace(" ", "_")
-                    if all(k in cl for k in keywords):
-                        return c
-                return None
-
-            mm_l = _find(["m_money", "long", "all"]) or _find(["money_manager", "long"])
-            mm_s = _find(["m_money", "short", "all"]) or _find(["money_manager", "short"])
-            pr_l = _find(["prod_merc", "long", "all"]) or _find(["producer", "long"])
-            pr_s = _find(["prod_merc", "short", "all"]) or _find(["producer", "short"])
-            oi_c = _find(["open_interest", "all"]) or _find(["open_interest"])
-
-            if not all([mm_l, mm_s]):
-                continue
-
-            result = pd.DataFrame({
-                "date": pd.to_datetime(coffee[date_col]),
-                "mm_long": pd.to_numeric(coffee[mm_l], errors="coerce"),
-                "mm_short": pd.to_numeric(coffee[mm_s], errors="coerce"),
-                "prod_long": pd.to_numeric(coffee.get(pr_l, 0), errors="coerce") if pr_l else 0,
-                "prod_short": pd.to_numeric(coffee.get(pr_s, 0), errors="coerce") if pr_s else 0,
-                "oi": pd.to_numeric(coffee.get(oi_c, 0), errors="coerce") if oi_c else 0,
-            })
-            result["mm_net"] = result["mm_long"] - result["mm_short"]
-            result["prod_net"] = result["prod_long"] - result["prod_short"]
-            result = result.set_index("date").sort_index()
-            frames.append(result)
-            print(f"    Loaded {len(result)} rows from {url.split('/')[-1]}")
-        except Exception as e:
-            print(f"    Failed {url.split('/')[-1]}: {e}")
-            continue
-
-    if not frames:
+def _load_local_cot_market(market: str, filename: str) -> dict:
+    """Load a curated local COT CSV and return dashboard-ready metrics."""
+    path = DATA_DIR / filename
+    if not path.exists():
         return {"available": False}
 
-    combined = pd.concat(frames).sort_index()
-    combined = combined[~combined.index.duplicated(keep="last")]
+    df = pd.read_csv(path)
+    rename = {
+        "Report_Date_as_YYYY-MM-DD": "date",
+        "Report_Date_as_MM_DD_YYYY": "date",
+        "As_of_Date_Form_MM/DD/YYYY": "date",
+        "Open_Interest_All": "oi",
+        "Prod_Merc_Positions_Long_All": "prod_long",
+        "Prod_Merc_Positions_Short_All": "prod_short",
+        "Swap_Positions_Long_All": "swap_long",
+        "Swap__Positions_Short_All": "swap_short",
+        "Swap_Positions_Short_All": "swap_short",
+        "M_Money_Positions_Long_All": "mm_long",
+        "M_Money_Positions_Short_All": "mm_short",
+        "Other_Rept_Positions_Long_All": "other_long",
+        "Other_Rept_Positions_Short_All": "other_short",
+        "Net_Managed_Money": "mm_net",
+        "Net_Commercials": "prod_net",
+        "Net_Swap": "swap_net",
+        "Net_Other": "other_net",
+    }
+    df = df.rename(columns={col: rename.get(col, col) for col in df.columns})
+    if "date" not in df:
+        return {"available": False}
 
-    # Z-score
-    mm_net = combined["mm_net"]
-    mean = mm_net.rolling(104, min_periods=20).mean()
-    std = mm_net.rolling(104, min_periods=20).std()
-    zscore = ((mm_net - mean) / std)
+    df["date"] = pd.to_datetime(df["date"], errors="coerce")
+    df = df.dropna(subset=["date"]).copy()
 
-    current_z = round(float(zscore.iloc[-1]), 2) if not zscore.empty else 0
+    cols = [
+        "oi", "prod_long", "prod_short", "swap_long", "swap_short",
+        "mm_long", "mm_short", "other_long", "other_short",
+    ]
+    for col in cols:
+        df[col] = pd.to_numeric(df.get(col, 0), errors="coerce").fillna(0)
+
+    net_pairs = {
+        "mm_net": ("mm_long", "mm_short"),
+        "prod_net": ("prod_long", "prod_short"),
+        "swap_net": ("swap_long", "swap_short"),
+        "other_net": ("other_long", "other_short"),
+    }
+    for net_col, (long_col, short_col) in net_pairs.items():
+        if net_col not in df:
+            df[net_col] = df[long_col] - df[short_col]
+        else:
+            df[net_col] = pd.to_numeric(df[net_col], errors="coerce").fillna(df[long_col] - df[short_col])
+
+    df = df.set_index("date").sort_index()
+    df = df[~df.index.duplicated(keep="last")]
+    if df.empty:
+        return {"available": False}
+
+    mm_net = df["mm_net"]
+    zscore = ((mm_net - mm_net.rolling(104, min_periods=20).mean()) / mm_net.rolling(104, min_periods=20).std())
+
+    def _pct_rank(values) -> float:
+        s = pd.Series(values).dropna()
+        if s.empty:
+            return float("nan")
+        return float((s <= s.iloc[-1]).mean() * 100)
+
+    percentile = mm_net.rolling(104, min_periods=20).apply(_pct_rank, raw=False)
+    latest = df.iloc[-1]
+    previous = df.iloc[-2] if len(df) > 1 else latest
+    latest_z = float(zscore.dropna().iloc[-1]) if not zscore.dropna().empty else 0.0
+    latest_pct = float(percentile.dropna().iloc[-1]) if not percentile.dropna().empty else 50.0
+
+    history = []
+    for d, row in df.iterrows():
+        oi = float(row["oi"]) if row["oi"] else 0.0
+        item = {"date": d.strftime("%Y-%m-%d")}
+        for col in [
+            "mm_long", "mm_short", "mm_net", "prod_long", "prod_short", "prod_net",
+            "swap_long", "swap_short", "swap_net", "other_long", "other_short", "other_net", "oi",
+        ]:
+            item[col] = int(row[col]) if pd.notna(row[col]) else 0
+        for col in ["mm", "prod", "swap", "other"]:
+            item[f"{col}_pct_oi"] = round(float(row[f"{col}_net"]) / oi * 100, 2) if oi else None
+        history.append(item)
+
+    recent_flow = []
+    for d, row in df.tail(8).iterrows():
+        prev = df.shift(1).loc[d]
+        recent_flow.append({
+            "date": d.strftime("%Y-%m-%d"),
+            "mm_net": int(row["mm_net"]),
+            "mm_wow": int(row["mm_net"] - prev["mm_net"]) if pd.notna(prev["mm_net"]) else 0,
+            "prod_net": int(row["prod_net"]),
+            "prod_wow": int(row["prod_net"] - prev["prod_net"]) if pd.notna(prev["prod_net"]) else 0,
+            "swap_net": int(row["swap_net"]),
+            "other_net": int(row["other_net"]),
+            "oi": int(row["oi"]),
+        })
 
     return {
         "available": True,
-        "current_mm_net": int(combined["mm_net"].iloc[-1]),
-        "current_prod_net": int(combined["prod_net"].iloc[-1]),
-        "current_oi": int(combined["oi"].iloc[-1]),
-        "current_zscore": current_z,
-        "history": [
-            {
-                "date": d.strftime("%Y-%m-%d"),
-                "mm_long": int(row["mm_long"]) if pd.notna(row["mm_long"]) else 0,
-                "mm_short": int(row["mm_short"]) if pd.notna(row["mm_short"]) else 0,
-                "mm_net": int(row["mm_net"]) if pd.notna(row["mm_net"]) else 0,
-                "prod_net": int(row["prod_net"]) if pd.notna(row["prod_net"]) else 0,
-                "oi": int(row["oi"]) if pd.notna(row["oi"]) else 0,
-            }
-            for d, row in combined.iterrows()
-        ],
+        "market": market,
+        "source": filename,
+        "last_report": df.index[-1].strftime("%Y-%m-%d"),
+        "rows": int(len(df)),
+        "current_mm_net": int(latest["mm_net"]),
+        "current_mm_wow": int(latest["mm_net"] - previous["mm_net"]),
+        "current_prod_net": int(latest["prod_net"]),
+        "current_prod_wow": int(latest["prod_net"] - previous["prod_net"]),
+        "current_swap_net": int(latest["swap_net"]),
+        "current_other_net": int(latest["other_net"]),
+        "current_oi": int(latest["oi"]),
+        "current_oi_wow": int(latest["oi"] - previous["oi"]),
+        "current_mm_pct_oi": round(float(latest["mm_net"]) / float(latest["oi"]) * 100, 2) if latest["oi"] else None,
+        "current_zscore": round(latest_z, 2),
+        "current_percentile": round(latest_pct, 1),
+        "history": history,
         "zscore_history": [
             {"date": d.strftime("%Y-%m-%d"), "value": round(float(v), 2)}
             for d, v in zscore.dropna().items()
         ],
+        "percentile_history": [
+            {"date": d.strftime("%Y-%m-%d"), "value": round(float(v), 1)}
+            for d, v in percentile.dropna().items()
+        ],
+        "recent_flow": recent_flow,
     }
 
+
+def fetch_cot() -> dict:
+    print("  Loading local COT data…")
+    files = {
+        "Arabica": "cot_arabica_disaggregated.csv",
+        "Robusta": "cot_robusta_disaggregated.csv",
+    }
+    markets = {}
+    for market, filename in files.items():
+        payload = _load_local_cot_market(market, filename)
+        if payload.get("available"):
+            markets[market] = payload
+            print(f"    {market}: {payload['rows']} rows from {filename}")
+        else:
+            print(f"    {market}: missing or invalid {filename}")
+
+    return {
+        "available": bool(markets),
+        "default_market": "Arabica" if "Arabica" in markets else next(iter(markets), None),
+        "markets": markets,
+    }
 
 def fetch_news() -> list[dict]:
     print("  Fetching coffee news…")
