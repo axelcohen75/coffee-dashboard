@@ -15,3 +15,11 @@ committed.
 | `stocks_robusta_ice_certified_by_port.csv` | `scripts/fetch_market_data.py` -> `docs/data/market-data.json` -> Physical/Inventory tab | ICE Europe Robusta certified stocks by port and total tonnes. |
 
 Do not commit broad raw CFTC yearly dumps; filter them into the canonical COT files above.
+
+## Claude compatibility note
+
+The former browser-side `arabica_cot.csv` fallback has been folded into the ETL:
+`scripts/fetch_market_data.py` now reads `cot_arabica_disaggregated.csv` and
+`cot_robusta_disaggregated.csv` directly, then writes both markets into
+`docs/data/market-data.json`. This keeps the dashboard static while avoiding
+duplicate CSV copies under `docs/data/`.

@@ -689,17 +689,31 @@ function renderInventory() {
             '<div style="padding:2rem;color:var(--text-muted);text-align:center;">No port breakdown available. Add port columns to your CSV.</div>';
     }
 
-    const rh = rob.history;
-    Plotly.react('chart-inv-robusta', [{
-        x: rh.map(d => d.date), y: rh.map(d => d.value),
-        name: 'Robusta Stocks', line: { color: COLORS.blue, width: 2 },
-        fill: 'tozeroy', fillcolor: 'rgba(69,123,157,0.06)',
-    }], mergeLayout({ height: 250, yaxis: { title: 'tonnes' } }), PLOTLY_CONFIG);
+    renderRobustaInventoryChart(rob);
+    const unitToggle = document.getElementById('inv-unit-toggle');
+    if (unitToggle && !unitToggle.dataset.bound) {
+        unitToggle.dataset.bound = '1';
+        unitToggle.addEventListener('change', () => renderRobustaInventoryChart(rob));
+    }
 
     if (s.simulated) {
         document.getElementById('inv-note').textContent =
             'Stock data is simulated. Place real CSV files in data/ and re-run the fetcher.';
     }
+}
+
+function renderRobustaInventoryChart(rob) {
+    const rh = rob?.history || [];
+    const convert = Boolean(document.getElementById('inv-unit-toggle')?.checked);
+    const factor = convert ? 1000 / 60 : 1;
+    const unit = convert ? 'bags (60kg equivalent)' : 'tonnes';
+    const values = rh.map(d => d.value * factor);
+    Plotly.react('chart-inv-robusta', [{
+        x: rh.map(d => d.date), y: values,
+        name: convert ? 'Robusta Stocks (bags eq.)' : 'Robusta Stocks (tonnes)',
+        line: { color: COLORS.blue, width: 2 },
+        fill: 'tozeroy', fillcolor: 'rgba(69,123,157,0.06)',
+    }], mergeLayout({ height: 250, yaxis: { title: unit } }), PLOTLY_CONFIG);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

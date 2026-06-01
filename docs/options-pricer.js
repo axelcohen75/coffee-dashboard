@@ -823,7 +823,7 @@ function _injectOptionsCSS() {
     .opt-risk-controls {
         display: flex;
         gap: 12px;
-        align-items: flex-start;
+        align-items: flex-end;
         margin-bottom: 12px;
         flex-wrap: wrap;
     }
