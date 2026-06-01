@@ -1,46 +1,22 @@
 # Data directory
 
-Keep this folder limited to data files that are actually consumed by the app or
-documented fallback paths. Timestamped raw downloads and one-off analysis files
-should stay outside the repository unless they are wired into a loader.
+This folder contains only canonical local inputs used by the static dashboard
+ETL. Raw downloads should be converted into these stable filenames before being
+committed.
 
-## Active fallback data
+## CSV map
 
-### `ice_robusta_futures_history.csv` - Robusta Coffee Futures (ICE London)
-
-Used by `utils/futures.py` and `scripts/fetch_market_data.py` when Yahoo Finance
-does not return RC data.
-
-Download from Investing.com: [Robusta Coffee Futures Historical Data](https://www.investing.com/commodities/london-coffee-historical-data)
-
-- Click "Download Data" (CSV).
-- French Investing.com exports are auto-detected (`Dernier`, `DD/MM/YYYY`, values
-  such as `3.476,00`).
-- Standard `Date,Close` CSVs are also supported.
+| File | Used by | Purpose |
+| --- | --- | --- |
+| `cot_arabica_disaggregated.csv` | `scripts/fetch_market_data.py` -> `docs/data/market-data.json` -> Positioning tab | Arabica CFTC disaggregated COT history with managed money, commercials, swaps, other reportables and open interest. |
+| `cot_robusta_disaggregated.csv` | `scripts/fetch_market_data.py` -> `docs/data/market-data.json` -> Positioning tab | Canonical Robusta COT history. Built by filtering and merging raw yearly CFTC history exports for ICE Robusta Coffee Futures rows only. |
+| `robusta_futures_price_history.csv` | `scripts/fetch_market_data.py` | Robusta futures price fallback when Yahoo Finance does not return `RC=F`. French Investing.com exports are supported. |
 
 ## Optional canonical files
 
-The static-data ETL will load these files if they are added with the documented
-schema:
+The ETL will also load these files if added with the documented schema:
 
 - `ice_arabica_stocks.csv` - columns: `Date,Total,<port columns...>`
 - `ice_robusta_stocks.csv` - columns: `Date,Total`
 
-These files are intentionally absent until a clean, repeatable source/export is
-available.
-
-## Positioning data
-
-### `Arabica_COT.csv` - Arabica CFTC COT history
-
-Used by the Streamlit Positioning page as the primary local source for trader
-positioning. Expected columns follow the CFTC disaggregated report style,
-including report date, open interest, long/short positions for managed money,
-commercials, swap dealers and other reportables, plus net columns when
-available.
-
-### `Robusta_COT.csv` - Robusta COT history (optional)
-
-If a Robusta COT file is added with the same schema, the Positioning page will
-automatically expose it in the market selector.
-
+Do not commit broad raw CFTC yearly dumps; filter them into the canonical COT files above.

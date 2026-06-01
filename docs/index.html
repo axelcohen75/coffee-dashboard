@@ -240,26 +240,49 @@
 <!-- POSITIONING TAB                                                        -->
 <!-- ═══════════════════════════════════════════════════════════════════════ -->
 <div id="tab-positioning" class="tab-panel">
-    <h2 style="font-size:1rem;margin-bottom:0.5rem;">/// POSITIONING <span style="color:var(--text-muted);font-size:0.75rem;">CFTC COT — MANAGED MONEY & COMMERCIALS</span></h2>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem;gap:1rem;">
+        <h2 style="font-size:1rem;margin:0;">/// POSITIONING <span style="color:var(--text-muted);font-size:0.75rem;">CFTC COT — ARABICA & ROBUSTA</span></h2>
+        <div id="pos-market-toggle" class="horizon-bar"></div>
+    </div>
+    <div class="footer" id="pos-source" style="margin-bottom:0.6rem;"></div>
     <div class="kpi-row" id="pos-kpis"></div>
     <div id="pos-signal"></div>
-    <div class="col-3-1">
-        <div>
-            <div class="panel">
-                <div class="panel-body-flush"><div id="chart-pos-mm" class="chart-container"></div></div>
-            </div>
-            <div class="panel" style="margin-top:0.8rem;">
-                <div class="panel-body-flush"><div id="chart-pos-comm" class="chart-container"></div></div>
-            </div>
-            <div class="panel" style="margin-top:0.8rem;">
-                <div class="panel-body-flush"><div id="chart-pos-zscore" class="chart-container"></div></div>
-            </div>
+
+    <div class="panel">
+        <div class="panel-header"><span class="panel-title">NET POSITIONING BY TRADER GROUP</span></div>
+        <div class="panel-body-flush"><div id="chart-pos-net" class="chart-container"></div></div>
+    </div>
+
+    <div class="col-3-1" style="margin-top:0.8rem;">
+        <div class="panel">
+            <div class="panel-header"><span class="panel-title">MANAGED MONEY LONG / SHORT BUILD</span></div>
+            <div class="panel-body-flush"><div id="chart-pos-mm" class="chart-container"></div></div>
         </div>
-        <div>
-            <div class="panel">
-                <div class="panel-header"><span class="panel-title">Z-SCORE GAUGE</span></div>
-                <div class="panel-body" id="pos-gauge"></div>
-            </div>
+        <div class="panel">
+            <div class="panel-header"><span class="panel-title">CROWDING GAUGE</span></div>
+            <div class="panel-body" id="pos-gauge"></div>
+        </div>
+    </div>
+
+    <div class="two-col" style="margin-top:0.8rem;">
+        <div class="panel">
+            <div class="panel-header"><span class="panel-title">Z-SCORE & PERCENTILE HISTORY</span></div>
+            <div class="panel-body-flush"><div id="chart-pos-zscore" class="chart-container"></div></div>
+        </div>
+        <div class="panel">
+            <div class="panel-header"><span class="panel-title">NET POSITION AS % OF OPEN INTEREST</span></div>
+            <div class="panel-body-flush"><div id="chart-pos-pctoi" class="chart-container"></div></div>
+        </div>
+    </div>
+
+    <div class="two-col" style="margin-top:0.8rem;">
+        <div class="panel">
+            <div class="panel-header"><span class="panel-title">LATEST REPORT SNAPSHOT</span></div>
+            <div class="panel-body" id="pos-snapshot"></div>
+        </div>
+        <div class="panel">
+            <div class="panel-header"><span class="panel-title">RECENT WEEKLY FLOW</span></div>
+            <div class="panel-body" id="pos-flow"></div>
         </div>
     </div>
 </div>

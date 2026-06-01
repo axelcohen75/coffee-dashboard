@@ -479,6 +479,33 @@ body {
 .alert-warning { background: rgba(244,162,97,0.15); border: 1px solid var(--orange); color: var(--orange); }
 .alert-ok { background: rgba(0,184,148,0.08); border: 1px solid var(--border); color: var(--accent); }
 
+
+/* ── Compact data tables ───────────────────────────────────────────────── */
+
+.data-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.72rem;
+}
+.data-table th {
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    font-size: 0.62rem;
+    font-weight: 700;
+    padding: 0.35rem 0.25rem;
+    border-bottom: 1px solid var(--border);
+    text-align: right;
+}
+.data-table th:first-child, .data-table td:first-child { text-align: left; }
+.data-table td {
+    padding: 0.35rem 0.25rem;
+    border-bottom: 1px solid rgba(30,42,58,0.55);
+    text-align: right;
+    font-family: var(--font-mono);
+}
+.data-table td:first-child { font-family: var(--font-sans); color: var(--text-secondary); }
+
 /* ── Chart containers ────────────────────────────────────────────────── */
 
 .chart-container {

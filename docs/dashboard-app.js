@@ -7,6 +7,7 @@ let DATA = null;
 let tsCompareDates = [];
 let activeSpread = null;
 let selectedAssets = ['kc'];
+let selectedCotMarket = null;
 
 async function init() {
     try {
@@ -996,110 +997,182 @@ function renderPhenology() {
 
 function renderPositioning() {
     document.getElementById('tab-positioning').dataset.rendered = '1';
-    const c = DATA.cot;
-    if (!c || !c.available) {
+    const cot = DATA.cot;
+    if (!cot || !cot.available || !cot.markets || !Object.keys(cot.markets).length) {
         document.getElementById('tab-positioning').innerHTML =
-            '<div class="loading">CFTC COT data not available. Check network access to cftc.gov.</div>';
+            '<div class="loading">CFTC COT data not available. Add cot_arabica_disaggregated.csv and/or cot_robusta_disaggregated.csv, then run the fetcher.</div>';
         return;
     }
 
-    const z = c.current_zscore;
-    const zCls = Math.abs(z) > 2 ? 'down' : Math.abs(z) > 1 ? 'neutral' : 'up';
-
-    document.getElementById('pos-kpis').innerHTML = `
-        <div class="kpi-card">
-            <div class="kpi-label">MM Net Position</div>
-            <div class="kpi-value">${fmtInt(c.current_mm_net)} lots</div>
-        </div>
-        <div class="kpi-card">
-            <div class="kpi-label">Z-Score (2Y)</div>
-            <div class="kpi-value ${zCls}">${z >= 0 ? '+' : ''}${fmtNum(z)}σ</div>
-        </div>
-        <div class="kpi-card">
-            <div class="kpi-label">Commercials Net</div>
-            <div class="kpi-value">${fmtInt(c.current_prod_net)} lots</div>
-        </div>
-        <div class="kpi-card">
-            <div class="kpi-label">Open Interest</div>
-            <div class="kpi-value">${fmtInt(c.current_oi)} lots</div>
-        </div>`;
-
-    const sigEl = document.getElementById('pos-signal');
-    if (z > 2) {
-        sigEl.innerHTML = '<div class="alert alert-warning">Specs very long (Z > +2σ) — Contrarian correction signal</div>';
-    } else if (z < -2) {
-        sigEl.innerHTML = '<div class="alert alert-ok">Specs very short (Z < −2σ) — Contrarian bounce signal</div>';
-    } else {
-        sigEl.innerHTML = '';
+    const markets = Object.keys(cot.markets);
+    if (!selectedCotMarket || !cot.markets[selectedCotMarket]) {
+        selectedCotMarket = cot.default_market || markets[0];
     }
 
-    const h = c.history;
-    Plotly.react('chart-pos-mm', [
-        { x: h.map(d => d.date), y: h.map(d => d.mm_long), name: 'MM Longs', type: 'bar',
-          marker: { color: COLORS.green, opacity: 0.3 } },
-        { x: h.map(d => d.date), y: h.map(d => -d.mm_short), name: 'MM Shorts', type: 'bar',
-          marker: { color: COLORS.red, opacity: 0.3 } },
-        { x: h.map(d => d.date), y: h.map(d => d.mm_net), name: 'MM Net',
-          line: { color: COLORS.orange, width: 2 } },
-    ], mergeLayout({
-        height: 350, barmode: 'overlay',
-        title: { text: 'Managed Money — Net Position (lots)', font: { size: 12, color: COLORS.muted } },
-    }), PLOTLY_CONFIG);
-
-    Plotly.react('chart-pos-comm', [{
-        x: h.map(d => d.date), y: h.map(d => d.prod_net),
-        name: 'Commercials Net', line: { color: COLORS.blue, width: 2 },
-    }], mergeLayout({
-        height: 250,
-        title: { text: 'Commercials — Net Position (lots)', font: { size: 12, color: COLORS.muted } },
-        shapes: [{ type: 'line', y0: 0, y1: 0, x0: 0, x1: 1, xref: 'paper',
-            line: { color: 'rgba(200,200,200,0.2)', width: 1 } }],
-    }), PLOTLY_CONFIG);
-
-    if (c.zscore_history && c.zscore_history.length) {
-        const zh = c.zscore_history;
-        Plotly.react('chart-pos-zscore', [{
-            x: zh.map(d => d.date), y: zh.map(d => d.value),
-            name: 'MM Z-Score', line: { color: COLORS.orange, width: 1.5 },
-            fill: 'tozeroy', fillcolor: 'rgba(244,162,97,0.08)',
-        }], mergeLayout({
-            height: 250,
-            title: { text: 'Z-Score History (2Y rolling)', font: { size: 12, color: COLORS.muted } },
-            yaxis: { title: 'σ' },
-            shapes: [
-                { type: 'line', y0: 2, y1: 2, x0: 0, x1: 1, xref: 'paper',
-                  line: { color: 'rgba(200,200,200,0.2)', dash: 'dot', width: 1 } },
-                { type: 'line', y0: -2, y1: -2, x0: 0, x1: 1, xref: 'paper',
-                  line: { color: 'rgba(200,200,200,0.2)', dash: 'dot', width: 1 } },
-                { type: 'rect', y0: -2, y1: 2, x0: 0, x1: 1, xref: 'paper',
-                  fillcolor: 'rgba(69,123,157,0.03)', line: { width: 0 } },
-            ],
-        }), PLOTLY_CONFIG);
-    }
-
-    renderZscoreGauge(z);
+    renderCotMarketToggle(markets);
+    renderCotMarket(cot.markets[selectedCotMarket]);
 }
 
-function renderZscoreGauge(z) {
+function renderCotMarketToggle(markets) {
+    const el = document.getElementById('pos-market-toggle');
+    el.innerHTML = markets.map(m => `
+        <button class="horizon-btn ${m === selectedCotMarket ? 'active' : ''}" onclick="selectCotMarket('${m}')">${m.toUpperCase()}</button>
+    `).join('');
+}
+
+function selectCotMarket(market) {
+    selectedCotMarket = market;
+    renderPositioning();
+}
+
+function renderCotMarket(c) {
+    const h = c.history || [];
+    if (!h.length) return;
+    const last = h[h.length - 1];
+    const z = c.current_zscore || 0;
+    const pct = c.current_percentile ?? 50;
+    const zCls = Math.abs(z) >= 2 ? 'down' : Math.abs(z) >= 1 ? 'neutral' : 'up';
+
+    document.getElementById('pos-source').textContent =
+        `Source: ${c.source} · Last report: ${c.last_report} · ${c.rows} weekly observations`;
+
+    document.getElementById('pos-kpis').innerHTML = `
+        <div class="kpi-card"><div class="kpi-label">MM Net</div><div class="kpi-value">${fmtSignedInt(c.current_mm_net)}</div><div class="kpi-delta ${pctClass(c.current_mm_wow)}">WoW ${fmtSignedInt(c.current_mm_wow)}</div></div>
+        <div class="kpi-card"><div class="kpi-label">MM Z-Score</div><div class="kpi-value ${zCls}">${z >= 0 ? '+' : ''}${fmtNum(z)}σ</div><div class="kpi-delta">2Y rolling</div></div>
+        <div class="kpi-card"><div class="kpi-label">Crowding Percentile</div><div class="kpi-value ${pct >= 90 ? 'down' : pct <= 10 ? 'up' : ''}">${fmtNum(pct, 0)}%</div><div class="kpi-delta">MM net rank</div></div>
+        <div class="kpi-card"><div class="kpi-label">Commercial Net</div><div class="kpi-value">${fmtSignedInt(c.current_prod_net)}</div><div class="kpi-delta ${pctClass(-c.current_prod_wow)}">WoW ${fmtSignedInt(c.current_prod_wow)}</div></div>
+        <div class="kpi-card"><div class="kpi-label">Open Interest</div><div class="kpi-value">${fmtInt(c.current_oi)}</div><div class="kpi-delta ${pctClass(c.current_oi_wow)}">WoW ${fmtSignedInt(c.current_oi_wow)}</div></div>
+        <div class="kpi-card"><div class="kpi-label">MM / OI</div><div class="kpi-value">${fmtSignedNum(c.current_mm_pct_oi, 1)}%</div><div class="kpi-delta">Net length intensity</div></div>
+    `;
+
+    renderCotDeskRead(c);
+    renderCotNetChart(h, c.market);
+    renderCotManagedMoneyChart(h);
+    renderCotGauge(z, pct);
+    renderCotZscoreChart(c.zscore_history || [], c.percentile_history || []);
+    renderCotPctOiChart(h);
+    renderCotTables(c, last);
+}
+
+function renderCotDeskRead(c) {
+    const z = c.current_zscore || 0;
+    const pct = c.current_percentile ?? 50;
+    let cls = 'alert-ok';
+    let msg;
+    if (z >= 2 || pct >= 90) {
+        cls = 'alert-warning';
+        msg = `${c.market}: managed money is crowded long (${fmtNum(z)}σ, ${fmtNum(pct, 0)}th pctile). Treat rallies as more vulnerable to liquidation if price momentum or Brazil/weather confirmation fades.`;
+    } else if (z <= -2 || pct <= 10) {
+        cls = 'alert-ok';
+        msg = `${c.market}: managed money is crowded short (${fmtNum(z)}σ, ${fmtNum(pct, 0)}th pctile). This is a cleaner contrarian bullish setup if fundamentals tighten.`;
+    } else if ((c.current_mm_wow || 0) > 0 && (c.current_prod_wow || 0) < 0) {
+        cls = 'alert-warning';
+        msg = `${c.market}: funds added length while commercials sold into the move. Trend-following flow is supportive, but producer selling can cap upside if it accelerates.`;
+    } else {
+        msg = `${c.market}: positioning is not at an extreme. Use COT as a context layer with spreads, Brazil parity, weather and certified stocks before arguing direction.`;
+    }
+    document.getElementById('pos-signal').innerHTML = `<div class="alert ${cls}"><b>Desk read:</b> ${msg}</div>`;
+}
+
+function renderCotNetChart(h, market) {
+    const traces = [
+        { key: 'mm_net', name: 'Managed Money', color: COLORS.orange, width: 2.4 },
+        { key: 'prod_net', name: 'Commercials', color: COLORS.blue, width: 2.1 },
+        { key: 'swap_net', name: 'Swap Dealers', color: COLORS.purple, width: 1.7 },
+        { key: 'other_net', name: 'Other Reportables', color: COLORS.yellow, width: 1.7 },
+    ].map(def => ({
+        x: h.map(d => d.date), y: h.map(d => d[def.key]), name: def.name,
+        line: { color: def.color, width: def.width },
+    }));
+    Plotly.react('chart-pos-net', traces, mergeLayout({
+        height: 430,
+        title: { text: `${market} COT — Net positioning by trader group`, font: { size: 12, color: COLORS.muted } },
+        yaxis: { title: 'Net lots', gridcolor: COLORS.grid, zerolinecolor: 'rgba(200,200,200,0.25)' },
+    }), PLOTLY_CONFIG);
+}
+
+function renderCotManagedMoneyChart(h) {
+    Plotly.react('chart-pos-mm', [
+        { x: h.map(d => d.date), y: h.map(d => d.mm_long), name: 'MM Longs', type: 'bar', marker: { color: COLORS.green, opacity: 0.42 } },
+        { x: h.map(d => d.date), y: h.map(d => -d.mm_short), name: 'MM Shorts', type: 'bar', marker: { color: COLORS.red, opacity: 0.42 } },
+        { x: h.map(d => d.date), y: h.map(d => d.mm_net), name: 'MM Net', line: { color: COLORS.orange, width: 2.2 } },
+    ], mergeLayout({
+        height: 360, barmode: 'relative',
+        yaxis: { title: 'Lots', gridcolor: COLORS.grid, zerolinecolor: 'rgba(200,200,200,0.25)' },
+    }), PLOTLY_CONFIG);
+}
+
+function renderCotGauge(z, pct) {
     const el = document.getElementById('pos-gauge');
-    const pct = ((z + 3) / 6 * 100).toFixed(0);
+    const markerPct = ((z + 3) / 6 * 100).toFixed(0);
     const color = z > 1.5 ? COLORS.red : z < -1.5 ? COLORS.green : COLORS.orange;
     el.innerHTML = `
         <div class="zscore-gauge">
             <div class="zscore-value" style="color:${color}">${z >= 0 ? '+' : ''}${fmtNum(z)}σ</div>
             <div class="zscore-label">Managed Money 2Y Z-Score</div>
-            <div class="zscore-bar">
-                <div class="zscore-marker" style="left:${Math.max(0, Math.min(100, pct))}%"></div>
-            </div>
-            <div style="display:flex;justify-content:space-between;font-size:0.6rem;color:var(--text-muted);">
-                <span>−3σ</span><span>0</span><span>+3σ</span>
-            </div>
-            <div style="margin-top:0.8rem;font-size:0.7rem;color:var(--text-muted);text-align:left;">
-                <div><span style="color:${COLORS.green}">■</span> Z &lt; −2σ: Contrarian bullish</div>
-                <div><span style="color:${COLORS.blue}">■</span> −1σ to +1σ: Normal</div>
-                <div><span style="color:${COLORS.red}">■</span> Z &gt; +2σ: Contrarian bearish</div>
+            <div class="zscore-bar"><div class="zscore-marker" style="left:${Math.max(0, Math.min(100, markerPct))}%"></div></div>
+            <div style="display:flex;justify-content:space-between;font-size:0.6rem;color:var(--text-muted);"><span>-3σ</span><span>0</span><span>+3σ</span></div>
+            <div style="margin-top:0.8rem;font-size:0.72rem;color:var(--text-muted);text-align:left;line-height:1.55;">
+                <div><span style="color:${COLORS.green}">■</span> Short extreme: contrarian bullish</div>
+                <div><span style="color:${COLORS.orange}">■</span> Current percentile: <b>${fmtNum(pct, 0)}%</b></div>
+                <div><span style="color:${COLORS.red}">■</span> Long extreme: liquidation risk</div>
             </div>
         </div>`;
+}
+
+function renderCotZscoreChart(zHist, pctHist) {
+    Plotly.react('chart-pos-zscore', [
+        { x: zHist.map(d => d.date), y: zHist.map(d => d.value), name: 'MM Z-Score', line: { color: COLORS.orange, width: 1.8 }, fill: 'tozeroy', fillcolor: 'rgba(244,162,97,0.08)' },
+        { x: pctHist.map(d => d.date), y: pctHist.map(d => d.value), name: 'Percentile', yaxis: 'y2', line: { color: COLORS.green, width: 1.5, dash: 'dot' } },
+    ], mergeLayout({
+        height: 330,
+        yaxis: { title: 'Z-score', gridcolor: COLORS.grid, zerolinecolor: 'rgba(200,200,200,0.25)' },
+        yaxis2: { title: 'Percentile', overlaying: 'y', side: 'right', range: [0, 100], gridcolor: 'rgba(0,0,0,0)' },
+        shapes: [
+            { type: 'line', y0: 2, y1: 2, x0: 0, x1: 1, xref: 'paper', line: { color: 'rgba(231,111,81,0.35)', dash: 'dot', width: 1 } },
+            { type: 'line', y0: -2, y1: -2, x0: 0, x1: 1, xref: 'paper', line: { color: 'rgba(0,184,148,0.35)', dash: 'dot', width: 1 } },
+        ],
+    }), PLOTLY_CONFIG);
+}
+
+function renderCotPctOiChart(h) {
+    const defs = [
+        ['mm_pct_oi', 'Managed Money', COLORS.orange],
+        ['prod_pct_oi', 'Commercials', COLORS.blue],
+        ['swap_pct_oi', 'Swap Dealers', COLORS.purple],
+        ['other_pct_oi', 'Other Reportables', COLORS.yellow],
+    ];
+    Plotly.react('chart-pos-pctoi', defs.map(([key, name, color]) => ({
+        x: h.map(d => d.date), y: h.map(d => d[key]), name, line: { color, width: 1.8 },
+    })), mergeLayout({
+        height: 330,
+        yaxis: { title: '% OI', gridcolor: COLORS.grid, zerolinecolor: 'rgba(200,200,200,0.25)' },
+    }), PLOTLY_CONFIG);
+}
+
+function renderCotTables(c, last) {
+    const groups = [
+        ['Managed Money', 'mm'], ['Commercials', 'prod'], ['Swap Dealers', 'swap'], ['Other Reportables', 'other'],
+    ];
+    document.getElementById('pos-snapshot').innerHTML = `
+        <table class="data-table"><thead><tr><th>Group</th><th>Long</th><th>Short</th><th>Net</th><th>Net/OI</th></tr></thead><tbody>
+        ${groups.map(([label, key]) => `<tr><td>${label}</td><td>${fmtInt(last[key + '_long'])}</td><td>${fmtInt(last[key + '_short'])}</td><td class="${pctClass(last[key + '_net'])}">${fmtSignedInt(last[key + '_net'])}</td><td>${fmtSignedNum(last[key + '_pct_oi'], 1)}%</td></tr>`).join('')}
+        </tbody></table>`;
+
+    document.getElementById('pos-flow').innerHTML = `
+        <table class="data-table"><thead><tr><th>Date</th><th>MM net</th><th>MM WoW</th><th>Comm. WoW</th><th>OI</th></tr></thead><tbody>
+        ${(c.recent_flow || []).slice().reverse().map(r => `<tr><td>${r.date}</td><td>${fmtSignedInt(r.mm_net)}</td><td class="${pctClass(r.mm_wow)}">${fmtSignedInt(r.mm_wow)}</td><td class="${pctClass(-r.prod_wow)}">${fmtSignedInt(r.prod_wow)}</td><td>${fmtInt(r.oi)}</td></tr>`).join('')}
+        </tbody></table>`;
+}
+
+function fmtSignedInt(v) {
+    if (v == null || isNaN(v)) return '—';
+    return (v >= 0 ? '+' : '') + Math.round(v).toLocaleString('en-US');
+}
+
+function fmtSignedNum(v, dec = 1) {
+    if (v == null || isNaN(v)) return '—';
+    return (v >= 0 ? '+' : '') + Number(v).toFixed(dec);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

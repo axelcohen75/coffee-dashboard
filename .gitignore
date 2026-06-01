@@ -1,8 +1,8 @@
-# Data files — do not commit CSV price data
+# Data files — keep only canonical runtime CSVs tracked
 data/*.csv
-!data/ice_robusta_futures_history.csv
-!data/Arabica_COT.csv
-!data/Robusta_COT.csv
+!data/robusta_futures_price_history.csv
+!data/cot_arabica_disaggregated.csv
+!data/cot_robusta_disaggregated.csv
 !data/ice_arabica_stocks.csv
 !data/ice_robusta_stocks.csv
 
@@ -12,5 +12,3 @@ __pycache__/
 *.pyo
 .env
 
-# Streamlit local config
-.streamlit/secrets.toml
