@@ -69,11 +69,13 @@ function renderOverview() {
     renderOverviewStockBadges();
     renderSpotPrices();
     renderFuturesMarket();
+    updateFuturesSectionSubtitles();
     renderPriceEvolution('1Y');
     renderAssetStats();
-    renderTermStructure();
+    activeSpread = getDefaultSpreadKey(selectedFuturesMarket);
     renderSpreadDashboard();
-    selectSpread('nz');
+    renderSpreadMonitor(activeSpread);
+    renderTermStructure();
     renderKeyDates();
     renderNews();
     setupHorizonButtons();
@@ -275,13 +277,18 @@ function computeYTDPerf(history) {
 
 function renderSpotPrices() {
     const el = document.getElementById('spot-prices');
-    const referenceAssets = [
-        { key: 'cepea', label: 'CEPEA/ESALQ Arabica' },
-        { key: 'brl', label: 'BRL/USD (PTAX)' },
-        { key: 'dxy', label: 'DXY (Dollar Index)' },
+    const coffeeAssets = [
+        { key: 'kc', label: 'KC Arabica' },
+        { key: 'rc', label: 'RC Robusta' },
+        { key: 'rc_cl', label: 'RC (¢/lb equiv.)' },
+        { key: 'cepea', label: 'CEPEA/ESALQ' },
     ];
     const spreadAssets = [
         { key: 'arb_rob', label: 'Arabica-Robusta Spread' },
+    ];
+    const fxAssets = [
+        { key: 'brl', label: 'BRL/USD (PTAX)' },
+        { key: 'dxy', label: 'DXY (Dollar Index)' },
     ];
 
     let html = `<div style="display:flex;justify-content:flex-end;gap:0.5rem;margin-bottom:0.3rem;padding:0 0.2rem;">
@@ -289,10 +296,12 @@ function renderSpotPrices() {
         <span class="spot-perf-label">YTD</span>
     </div>`;
 
-    html += `<div class="spot-category">SPOT / MACRO REFERENCES</div>`;
-    html += _renderSpotRows(referenceAssets, 'reference');
+    html += `<div class="spot-category">COFFEE</div>`;
+    html += _renderSpotRows(coffeeAssets);
     html += `<div class="spot-category spot-category-spreads">SPREADS</div>`;
     html += _renderSpotRows(spreadAssets, 'spread');
+    html += `<div class="spot-category" style="margin-top:0.4rem;">FX</div>`;
+    html += _renderSpotRows(fxAssets);
 
     el.innerHTML = html;
 }
@@ -314,7 +323,7 @@ function renderFuturesMarket() {
     const nextSpread = second.price && front.price ? second.price - front.price : null;
 
     el.innerHTML = `
-        <div class="futures-market-card" onclick="selectFuturesMarket('${selectedFuturesMarket}', true)">
+        <div class="futures-market-card">
             <div class="futures-market-top">
                 <div>
                     <div class="futures-label">${market.exchange}</div>
@@ -349,21 +358,19 @@ function renderFuturesMarketToggle() {
     const el = document.getElementById('futures-market-toggle');
     if (!el) return;
     el.innerHTML = ['Arabica', 'Robusta'].map(m => `
-        <button class="horizon-btn ${m === selectedFuturesMarket ? 'active' : ''}" onclick="selectFuturesMarket('${m}', true)">${m.toUpperCase()}</button>
+        <button class="horizon-btn ${m === selectedFuturesMarket ? 'active' : ''}" onclick="selectFuturesMarket('${m}')">${m.toUpperCase()}</button>
     `).join('');
 }
 
-function selectFuturesMarket(market, updateChart = false) {
+function selectFuturesMarket(market) {
     selectedFuturesMarket = market;
-    if (updateChart) {
-        selectedAssets = [market === 'Robusta' ? 'rc' : 'kc'];
-    }
+    activeSpread = getDefaultSpreadKey(market);
     renderFuturesMarket();
-    renderSpotPrices();
-    if (updateChart) {
-        renderPriceEvolution(document.querySelector('.horizon-btn.active')?.dataset.horizon || '1Y');
-        renderAssetStats();
-    }
+    updateFuturesSectionSubtitles();
+    renderSpreadDashboard();
+    renderSpreadMonitor(activeSpread);
+    renderTermStructure();
+    renderTsDateTags();
 }
 
 function getFuturesMarketPayload(market) {
@@ -385,6 +392,67 @@ function getFuturesMarketPayload(market) {
         contractSize: '37,500 lbs', tick: '0.05¢/lb = $18.75', months: 'Mar, May, Jul, Sep, Dec',
         curveSource: curve[0]?.source || 'Yahoo Finance',
     };
+}
+
+function updateFuturesSectionSubtitles() {
+    const sectionSub = document.getElementById('futures-section-subtitle');
+    const tsSub = document.getElementById('term-structure-subtitle');
+    const compareControls = document.getElementById('ts-compare-controls');
+    if (selectedFuturesMarket === 'Robusta') {
+        if (sectionSub) sectionSub.textContent = ' ROBUSTA // RC ICE EUROPE';
+        if (tsSub) tsSub.textContent = ' RC ROBUSTA // DELIVERY MONTH';
+        if (compareControls) compareControls.style.display = 'none';
+    } else {
+        if (sectionSub) sectionSub.textContent = ' ARABICA // KC ICE';
+        if (tsSub) tsSub.textContent = ' KC ARABICA // DELIVERY MONTH';
+        if (compareControls) compareControls.style.display = '';
+    }
+}
+
+function getDefaultSpreadKey(market) {
+    if (market === 'Robusta') {
+        const defs = getRobustaSpreadDefs();
+        return defs.length ? defs[0].key : null;
+    }
+    return 'nz';
+}
+
+function getRobustaSpreadDefs() {
+    const rc = DATA.forward_curve?.rc || [];
+    const defs = [];
+    for (let i = 0; i < Math.min(rc.length - 1, 4); i++) {
+        const a = rc[i];
+        const b = rc[i + 1];
+        const aMon = (a.delivery_month || a.contract || '').split(' ')[0];
+        const bMon = (b.delivery_month || b.contract || '').split(' ')[0];
+        defs.push({
+            key: `rc_${i}`,
+            label: `RC ${a.contract}-${b.contract}`,
+            desc: `${aMon} → ${bMon}`,
+            months: `${a.delivery_month || a.contract} vs ${b.delivery_month || b.contract}`,
+            current: b.price - a.price,
+            unit: '$/t',
+        });
+    }
+    return defs;
+}
+
+function getSpreadPayload(spreadKey) {
+    if (selectedFuturesMarket === 'Robusta') {
+        const def = getRobustaSpreadDefs().find(d => d.key === spreadKey);
+        if (!def) return null;
+        return {
+            label: def.label,
+            current: def.current,
+            mean: null,
+            history: null,
+            unit: def.unit,
+            detail: def,
+        };
+    }
+    const sp = DATA.spreads?.[spreadKey];
+    if (!sp) return null;
+    return { ...sp, unit: '¢/lb', detail: SPREAD_DETAILS[spreadKey] || {} };
 }
 
 function estimateContractRoll(frontContract, marketKey) {
@@ -582,74 +650,66 @@ function renderPriceEvolution(horizon) {
 // ── Term Structure with date comparison ──────────────────────────────────
 
 function renderTermStructure() {
-    const kc = DATA.forward_curve.kc || [];
-    const rc = DATA.forward_curve.rc || [];
-    if (!kc.length && !rc.length) {
-        document.getElementById('chart-term-structure').innerHTML =
-            '<div class="loading">Forward curve not available</div>';
+    const isRobusta = selectedFuturesMarket === 'Robusta';
+    const curve = isRobusta ? (DATA.forward_curve.rc || []) : (DATA.forward_curve.kc || []);
+    const chartEl = document.getElementById('chart-term-structure');
+    if (!curve.length) {
+        chartEl.innerHTML = '<div class="loading">Forward curve not available</div>';
         return;
     }
 
     const traces = [];
-    if (kc.length) {
+    if (isRobusta) {
         traces.push({
-            x: kc.map(d => d.contract),
-            y: kc.map(d => d.price),
+            x: curve.map(d => d.delivery_month || d.contract),
+            y: curve.map(d => d.price),
+            name: 'RC Robusta ($/t)',
+            mode: 'lines+markers',
+            line: { color: COLORS.blue, width: 2.5 },
+            marker: { size: 7 },
+            customdata: curve.map(d => [d.symbol || '', d.source || '', d.volume || 0]),
+            hovertemplate: '%{x}<br>%{y:.0f} $/t<br>%{customdata[0]}<br>Source: %{customdata[1]}<br>Volume: %{customdata[2]:,.0f}<extra>RC Robusta</extra>',
+        });
+    } else {
+        traces.push({
+            x: curve.map(d => d.contract),
+            y: curve.map(d => d.price),
             name: 'KC Arabica (¢/lb)',
             mode: 'lines+markers',
             line: { color: COLORS.accent, width: 2.5 },
             marker: { size: 7 },
         });
-    }
-    if (rc.length) {
-        traces.push({
-            x: rc.map(d => d.delivery_month || d.contract),
-            y: rc.map(d => d.price),
-            name: 'RC Robusta ($/t)',
-            mode: 'lines+markers',
-            yaxis: 'y2',
-            line: { color: COLORS.blue, width: 2.5 },
-            marker: { size: 7 },
-            customdata: rc.map(d => [d.symbol || '', d.source || '', d.volume || 0]),
-            hovertemplate: '%{x}<br>%{y:.0f} $/t<br>%{customdata[0]}<br>Source: %{customdata[1]}<br>Volume: %{customdata[2]:,.0f}<extra>RC Robusta</extra>',
+        const compareColors = [COLORS.orange, COLORS.purple, COLORS.yellow, COLORS.red];
+        tsCompareDates.forEach((dateStr, i) => {
+            const histCurve = getHistoricalCurveAtDate(dateStr);
+            if (histCurve && histCurve.length) {
+                traces.push({
+                    x: histCurve.map(d => d.contract),
+                    y: histCurve.map(d => d.price),
+                    name: `KC (${dateStr})`,
+                    mode: 'lines+markers',
+                    line: { color: compareColors[i % compareColors.length], width: 2, dash: 'dash' },
+                    marker: { size: 6, symbol: 'diamond' },
+                });
+            }
         });
     }
 
-    const compareColors = [COLORS.orange, COLORS.purple, COLORS.yellow, COLORS.red];
-    tsCompareDates.forEach((dateStr, i) => {
-        const curve = getHistoricalCurveAtDate(dateStr);
-        if (curve && curve.length) {
-            traces.push({
-                x: curve.map(d => d.contract),
-                y: curve.map(d => d.price),
-                name: `KC (${dateStr})`,
-                mode: 'lines+markers',
-                line: { color: compareColors[i % compareColors.length], width: 2, dash: 'dash' },
-                marker: { size: 6, symbol: 'diamond' },
-            });
-        }
-    });
-
-    let titleParts = [];
-    if (kc.length >= 2) {
-        const f = kc[0].price, l = kc[kc.length - 1].price;
+    let titleText = 'Term Structure';
+    if (curve.length >= 2) {
+        const f = curve[0].price, l = curve[curve.length - 1].price;
         const structure = l > f ? 'Contango' : 'Backwardation';
         const slope = ((l / f - 1) * 100).toFixed(1);
-        titleParts.push(`KC ${structure} (${slope > 0 ? '+' : ''}${slope}%)`);
-    }
-    if (rc.length >= 2) {
-        const f = rc[0].price, l = rc[rc.length - 1].price;
-        const structure = l > f ? 'Contango' : 'Backwardation';
-        const slope = ((l / f - 1) * 100).toFixed(1);
-        titleParts.push(`RC ${structure} (${slope > 0 ? '+' : ''}${slope}%)`);
+        const prefix = isRobusta ? 'RC' : 'KC';
+        titleText = `${prefix} — ${structure} (${slope > 0 ? '+' : ''}${slope}%)`;
     }
 
-    Plotly.react('chart-term-structure', traces, mergeLayout({
+    const layout = {
         height: 310,
-        title: { text: titleParts.join(' · ') || 'KC & RC Term Structure', font: { size: 11, color: COLORS.muted } },
-        yaxis: { title: 'KC ¢/lb' },
-        yaxis2: { title: 'RC $/t', overlaying: 'y', side: 'right', showgrid: false, color: COLORS.blue },
-    }), PLOTLY_CONFIG);
+        title: { text: titleText, font: { size: 11, color: COLORS.muted } },
+        yaxis: { title: isRobusta ? '$/t' : '¢/lb' },
+    };
+    Plotly.react('chart-term-structure', traces, mergeLayout(layout), PLOTLY_CONFIG);
 }
 
 function getHistoricalCurveAtDate(dateStr) {
@@ -754,15 +814,27 @@ function renderSpreadMonitorFromDropdown() {
 function renderSpreadMonitor(spreadKey) {
     const chartEl = document.getElementById('chart-spread-monitor');
     const subtitleEl = document.getElementById('spread-chart-subtitle');
+    const payload = getSpreadPayload(spreadKey);
 
-    const sp = DATA.spreads?.[spreadKey];
-    if (!sp || !sp.history || !sp.history.length) {
+    if (!payload) {
+        chartEl.innerHTML = '<div class="loading">No data for this timespread</div>';
+        if (subtitleEl) subtitleEl.textContent = '';
+        return;
+    }
+
+    const detail = payload.detail || {};
+    if (selectedFuturesMarket === 'Robusta') {
+        renderRobustaSpreadChart(payload);
+        if (subtitleEl) subtitleEl.textContent = ` ${payload.label} — ${detail.months || detail.desc || ''} // ${payload.unit}`;
+        return;
+    }
+
+    if (!payload.history || !payload.history.length) {
         chartEl.innerHTML = '<div class="loading">No data for this timespread</div>';
         return;
     }
-    const detail = SPREAD_DETAILS[spreadKey] || {};
-    renderSpreadChart(sp.history, sp.mean, sp.current, sp.label);
-    if (subtitleEl) subtitleEl.textContent = ` ${sp.label} — ${detail.months || ''} // ¢/lb`;
+    renderSpreadChart(payload.history, payload.mean, payload.current, payload.label, payload.unit);
+    if (subtitleEl) subtitleEl.textContent = ` ${payload.label} — ${detail.months || ''} // ${payload.unit}`;
 }
 
 function _smoothSeries(values, window) {
@@ -777,7 +849,7 @@ function _smoothSeries(values, window) {
     return out;
 }
 
-function renderSpreadChart(history, mean, current, name) {
+function renderSpreadChart(history, mean, current, name, unit = '¢/lb') {
     const h = history;
     const smoothed = _smoothSeries(h.map(d => d.value), 5);
     const traces = [{
@@ -801,9 +873,29 @@ function renderSpreadChart(history, mean, current, name) {
 
     Plotly.react('chart-spread-monitor', traces, mergeLayout({
         height: 310,
-        title: { text: `Current: ${fmtNum(current)} ¢/lb`, font: { size: 11, color: COLORS.muted } },
-        yaxis: { title: '¢/lb' },
+        title: { text: `Current: ${fmtNum(current)} ${unit}`, font: { size: 11, color: COLORS.muted } },
+        yaxis: { title: unit },
         shapes, annotations,
+    }), PLOTLY_CONFIG);
+}
+
+function renderRobustaSpreadChart(payload) {
+    const defs = getRobustaSpreadDefs();
+    const labels = defs.map(d => d.label.replace('RC ', ''));
+    const values = defs.map(d => d.current);
+    const selectedIdx = defs.findIndex(d => d.key === activeSpread);
+    const barColors = defs.map((d, i) => i === selectedIdx ? COLORS.accent : 'rgba(69,123,157,0.55)');
+
+    Plotly.react('chart-spread-monitor', [{
+        x: labels,
+        y: values,
+        type: 'bar',
+        marker: { color: barColors },
+        hovertemplate: '%{x}<br>%{y:.0f} $/t<extra></extra>',
+    }], mergeLayout({
+        height: 310,
+        title: { text: `Selected: ${fmtNum(payload.current, 0)} $/t (curve snapshot)`, font: { size: 11, color: COLORS.muted } },
+        yaxis: { title: '$/t' },
     }), PLOTLY_CONFIG);
 }
 
@@ -812,21 +904,25 @@ function renderSpreadChart(history, mean, current, name) {
 function renderSpreadDashboard() {
     const el = document.getElementById('spread-dashboard');
     let html = '';
+    const isRobusta = selectedFuturesMarket === 'Robusta';
+    const defs = isRobusta ? getRobustaSpreadDefs() : SPREAD_DEFS;
 
-    for (const def of SPREAD_DEFS) {
-        const sp = DATA.spreads?.[def.key];
+    for (const def of defs) {
+        const sp = isRobusta ? def : DATA.spreads?.[def.key];
         if (!sp) continue;
-        const cls = sp.current >= 0 ? 'up' : 'down';
-        const detail = SPREAD_DETAILS[def.key] || {};
-        const meanDiff = sp.mean != null ? (sp.current - sp.mean) : null;
+        const current = isRobusta ? def.current : sp.current;
+        const cls = current >= 0 ? 'up' : 'down';
+        const detail = isRobusta ? def : (SPREAD_DETAILS[def.key] || {});
+        const meanDiff = !isRobusta && sp.mean != null ? (sp.current - sp.mean) : null;
         const meanTag = meanDiff != null ? `<span style="font-size:0.55rem;color:${meanDiff >= 0 ? 'var(--green)' : 'var(--red)'}">${meanDiff >= 0 ? '+' : ''}${fmtNum(meanDiff)} vs avg</span>` : '';
+        const unit = isRobusta ? '$/t' : '¢/lb';
         html += `<div class="spread-item${activeSpread === def.key ? ' active' : ''}" onclick="selectSpread('${def.key}')">
             <div>
                 <span class="spread-label" style="font-weight:600;">${def.label}</span>
-                <span style="font-size:0.6rem;color:var(--text-muted);margin-left:0.3rem;">${detail.desc || def.desc}</span>
+                <span style="font-size:0.6rem;color:var(--text-muted);margin-left:0.3rem;">${detail.desc || def.desc || ''}</span>
                 <div style="font-size:0.55rem;color:var(--text-muted);">${detail.months || ''} ${meanTag}</div>
             </div>
-            <span class="spread-value ${cls}">${sp.current >= 0 ? '+' : ''}${fmtNum(sp.current)}</span>
+            <span class="spread-value ${cls}">${current >= 0 ? '+' : ''}${fmtNum(current, isRobusta ? 0 : 2)} <span style="font-size:0.55rem;color:var(--text-muted);">${unit}</span></span>
         </div>`;
     }
 
