@@ -879,138 +879,157 @@ function setupHorizonButtons() {
 // ═══════════════════════════════════════════════════════════════════════════
 
 const TONNES_TO_BAGS = 1000 / 60;
-
-let _invListenersSetup = false;
+let selectedPhysicalMarket = 'Arabica';
+let _physicalListenersSetup = false;
 
 function renderInventory() {
     document.getElementById('tab-inventory').dataset.rendered = '1';
     const s = DATA.stocks;
     if (!s) return;
 
-    const arab = s.arabica || { current: 0, one_month_ago: 0, history: [] };
-    const rob = s.robusta || { current: 0, one_month_ago: 0, history: [] };
-    const convertToBags = document.getElementById('inv-unit-toggle')?.checked || false;
-    const showPrice = document.getElementById('inv-price-overlay')?.checked || false;
-    const arabHorizon = document.querySelector('#inv-arabica-horizon .horizon-btn.active')?.dataset.horizon || '1Y';
+    renderPhysicalMarketToggle();
+    renderPhysicalMarket(selectedPhysicalMarket);
 
-    const robCurrent = convertToBags ? Math.round(rob.current * TONNES_TO_BAGS) : rob.current;
-    const robPrev = convertToBags ? Math.round(rob.one_month_ago * TONNES_TO_BAGS) : rob.one_month_ago;
-    const robUnit = convertToBags ? 'bags (60kg)' : 'lots';
-
-    const arabVar = arab.one_month_ago ? arab.current - arab.one_month_ago : 0;
-    const arabVarPct = arab.one_month_ago ? ((arabVar / arab.one_month_ago) * 100).toFixed(1) : '0.0';
-    const robVar = robCurrent - robPrev;
-
-    document.getElementById('inv-kpis-arabica').innerHTML = `
-        <div class="kpi-card" style="border-left:3px solid ${COLORS.accent}">
-            <div class="kpi-label">Arabica Certified (ICE US)</div>
-            <div class="kpi-value">${fmtInt(arab.current)} bags</div>
-            <div class="kpi-delta ${arabVar >= 0 ? 'up' : 'down'}">${arabVar >= 0 ? '+' : ''}${fmtInt(arabVar)} (${arabVarPct}%) 1M</div>
-        </div>`;
-
-    document.getElementById('inv-kpis-robusta').innerHTML = `
-        <div class="kpi-card" style="border-left:3px solid ${COLORS.blue}">
-            <div class="kpi-label">Robusta Certified (ICE EU)</div>
-            <div class="kpi-value">${fmtInt(robCurrent)} ${robUnit}</div>
-            <div class="kpi-delta ${robVar >= 0 ? 'up' : 'down'}">${robVar >= 0 ? '+' : ''}${fmtInt(robVar)} 1M</div>
-        </div>`;
-
-    _drawArabicaStocks(arab, s.ports, showPrice, arabHorizon);
-    _drawRobustaStocks(rob, s.robusta_ports, convertToBags);
-
-    if (!_invListenersSetup) {
-        _invListenersSetup = true;
-        document.getElementById('inv-unit-toggle')?.addEventListener('change', () => renderInventory());
-        document.getElementById('inv-price-overlay')?.addEventListener('change', () => renderInventory());
-        document.querySelectorAll('#inv-arabica-horizon .horizon-btn').forEach(btn => {
+    if (!_physicalListenersSetup) {
+        _physicalListenersSetup = true;
+        document.getElementById('physical-unit-toggle')?.addEventListener('change', () => renderPhysicalMarket(selectedPhysicalMarket));
+        document.getElementById('physical-price-overlay')?.addEventListener('change', () => renderPhysicalMarket(selectedPhysicalMarket));
+        document.querySelectorAll('#physical-horizon .horizon-btn').forEach(btn => {
             btn.addEventListener('click', () => {
-                document.querySelectorAll('#inv-arabica-horizon .horizon-btn').forEach(b => b.classList.remove('active'));
+                document.querySelectorAll('#physical-horizon .horizon-btn').forEach(b => b.classList.remove('active'));
                 btn.classList.add('active');
-                renderInventory();
+                renderPhysicalMarket(selectedPhysicalMarket);
             });
         });
     }
 }
 
-function _drawArabicaStocks(arab, ports, showPrice, horizon) {
-    const ah = arab.history;
-    if (!ah || !ah.length) return;
+function renderPhysicalMarketToggle() {
+    const el = document.getElementById('physical-market-toggle');
+    el.innerHTML = ['Arabica', 'Robusta'].map(m => `
+        <button class="horizon-btn ${m === selectedPhysicalMarket ? 'active' : ''}" onclick="selectPhysicalMarket('${m}')">${m.toUpperCase()}</button>
+    `).join('');
+}
 
-    let filtered = ah;
+function selectPhysicalMarket(market) {
+    selectedPhysicalMarket = market;
+    renderPhysicalMarketToggle();
+    renderPhysicalMarket(market);
+}
+
+function renderPhysicalMarket(market) {
+    const s = DATA.stocks || {};
+    const isRobusta = market === 'Robusta';
+    const data = isRobusta ? (s.robusta || { current: 0, one_month_ago: 0, history: [] }) : (s.arabica || { current: 0, one_month_ago: 0, history: [] });
+    const ports = isRobusta ? (s.robusta_ports || {}) : (s.ports || {});
+    const convert = isRobusta && Boolean(document.getElementById('physical-unit-toggle')?.checked);
+    const showPrice = Boolean(document.getElementById('physical-price-overlay')?.checked);
+    const horizon = document.querySelector('#physical-horizon .horizon-btn.active')?.dataset.horizon || '1Y';
+    const factor = convert ? TONNES_TO_BAGS : 1;
+    const unit = isRobusta ? (convert ? 'bags (60kg equivalent)' : 'tonnes') : 'bags (60kg)';
+    const current = Math.round((data.current || 0) * factor);
+    const prev = Math.round((data.one_month_ago || 0) * factor);
+    const change = current - prev;
+    const changePct = prev ? (change / prev * 100) : 0;
+
+    document.getElementById('physical-source').textContent = isRobusta
+        ? 'ICE Europe Robusta certified stocks by port. Toggle converts tonnes to 60kg bag equivalent.'
+        : 'ICE Futures U.S. Coffee C certified stocks by licensed warehouse port.';
+    document.getElementById('physical-history-title').textContent = `${market.toUpperCase()} STOCKS — HISTORICAL`;
+    document.getElementById('physical-ports-title').textContent = `${market.toUpperCase()} — CURRENT LEVELS BY PORT`;
+    document.getElementById('physical-unit-toggle-wrap').style.display = isRobusta ? 'flex' : 'none';
+    document.getElementById('physical-price-overlay-wrap').style.display = 'flex';
+
+    const daysConsumption = !isRobusta && current ? Math.round(current / (100000000 / 365)) : null;
+    document.getElementById('physical-kpis').innerHTML = `
+        <div class="kpi-card"><div class="kpi-label">${market} Certified</div><div class="kpi-value">${fmtInt(current)} ${unit}</div><div class="kpi-delta ${change >= 0 ? 'up' : 'down'}">${change >= 0 ? '+' : ''}${fmtInt(change)} (${changePct.toFixed(1)}%) 1M</div></div>
+        <div class="kpi-card"><div class="kpi-label">Latest Report</div><div class="kpi-value">${data.history?.length ? data.history[data.history.length - 1].date : '—'}</div><div class="kpi-delta">${data.history?.length || 0} observations</div></div>
+        <div class="kpi-card"><div class="kpi-label">Largest Port</div><div class="kpi-value">${topPortName(ports)}</div><div class="kpi-delta">${fmtInt(topPortValue(ports))} ${unit}</div></div>
+        ${daysConsumption != null ? `<div class="kpi-card"><div class="kpi-label">Days of Consumption</div><div class="kpi-value">${daysConsumption} days</div><div class="kpi-delta">Arabica only proxy</div></div>` : `<div class="kpi-card"><div class="kpi-label">Unit View</div><div class="kpi-value">${convert ? 'Bags eq.' : 'Tonnes'}</div><div class="kpi-delta">Robusta stocks</div></div>`}
+    `;
+
+    renderPhysicalDeskRead(market, change, changePct, current, unit);
+    drawPhysicalHistory(market, data.history || [], showPrice, horizon, factor, unit);
+    drawPhysicalPorts(ports, factor, unit);
+    renderPhysicalWatchlist(market);
+}
+
+function topPortName(ports) {
+    const entries = Object.entries(ports || {}).sort((a, b) => b[1] - a[1]);
+    return entries.length ? entries[0][0] : '—';
+}
+
+function topPortValue(ports) {
+    const entries = Object.entries(ports || {}).sort((a, b) => b[1] - a[1]);
+    return entries.length ? entries[0][1] : 0;
+}
+
+function renderPhysicalDeskRead(market, change, changePct, current, unit) {
+    const cls = change < 0 ? 'alert-warning' : 'alert-ok';
+    const direction = change < 0 ? 'drawn down' : 'built';
+    const implication = change < 0
+        ? 'tightens visible exchange availability and can support nearby spreads if demand is confirmed.'
+        : 'adds visible buffer and can soften nearby tightness unless certified quality/location is constrained.';
+    document.getElementById('physical-read').innerHTML = `<div class="alert ${cls}"><b>Desk read:</b> ${market} certified stocks ${direction} by ${fmtInt(Math.abs(change))} ${unit} (${changePct.toFixed(1)}%) over the last month. This ${implication}</div>`;
+}
+
+function drawPhysicalHistory(market, history, showPrice, horizon, factor, unit) {
+    if (!history.length) return;
+    let filtered = history;
     if (horizon && horizon !== 'MAX') {
         const cutoff = getCutoffDate(horizon);
-        filtered = ah.filter(d => d.date >= cutoff);
-        if (!filtered.length) filtered = ah;
+        filtered = history.filter(d => d.date >= cutoff);
+        if (!filtered.length) filtered = history;
     }
-
+    const color = market === 'Robusta' ? COLORS.blue : COLORS.accent;
     const traces = [{
-        x: filtered.map(d => d.date), y: filtered.map(d => d.value),
-        name: 'Arabica Stocks', line: { color: COLORS.accent, width: 2 },
-        fill: 'tozeroy', fillcolor: 'rgba(0,212,170,0.06)',
+        x: filtered.map(d => d.date), y: filtered.map(d => d.value * factor),
+        name: `${market} Stocks`, line: { color, width: 2 },
+        fill: 'tozeroy', fillcolor: market === 'Robusta' ? 'rgba(69,123,157,0.06)' : 'rgba(0,212,170,0.06)',
     }];
-    const layout = { height: 380, yaxis: { title: 'bags (60kg)' } };
-
-    if (showPrice && DATA.futures?.kc?.history) {
-        const kc = DATA.futures.kc.history;
+    const layout = { height: 390, yaxis: { title: unit } };
+    const priceSeries = market === 'Robusta' ? DATA.futures?.rc?.history : DATA.futures?.kc?.history;
+    if (showPrice && priceSeries?.length) {
         const cutoff = filtered[0].date;
-        const kcFiltered = kc.filter(d => d.date >= cutoff);
+        const px = priceSeries.filter(d => d.date >= cutoff);
         traces.push({
-            x: kcFiltered.map(d => d.date), y: kcFiltered.map(d => d.value),
-            name: 'KC Arabica (¢/lb)', yaxis: 'y2',
+            x: px.map(d => d.date), y: px.map(d => d.value), yaxis: 'y2',
+            name: market === 'Robusta' ? 'RC Futures ($/t)' : 'KC Futures (¢/lb)',
             line: { color: COLORS.orange, width: 1.5, dash: 'dot' },
         });
-        layout.yaxis2 = { title: '¢/lb', overlaying: 'y', side: 'right', showgrid: false, color: COLORS.orange };
+        layout.yaxis2 = { title: market === 'Robusta' ? '$/t' : '¢/lb', overlaying: 'y', side: 'right', showgrid: false, color: COLORS.orange };
     }
+    Plotly.react('chart-physical-history', traces, mergeLayout(layout), PLOTLY_CONFIG);
+}
 
-    Plotly.react('chart-inv-arabica', traces, mergeLayout(layout), PLOTLY_CONFIG);
-
+function drawPhysicalPorts(ports, factor, unit) {
     const portData = ports || {};
     const portNames = Object.keys(portData).sort((a, b) => portData[b] - portData[a]);
-    if (portNames.length) {
-        Plotly.react('chart-inv-ports', [{
-            y: portNames, x: portNames.map(p => portData[p]),
-            type: 'bar', orientation: 'h',
-            marker: { color: portNames.map((_, i) => i === 0 ? COLORS.accent : COLORS.blue) },
-            text: portNames.map(p => fmtInt(portData[p])),
-            textposition: 'auto', textfont: { size: 10 },
-        }], mergeLayout({ height: 380, margin: { l: 150 } }), PLOTLY_CONFIG);
+    if (!portNames.length) {
+        document.getElementById('chart-physical-ports').innerHTML = '<div style="padding:2rem;color:var(--text-muted);text-align:center;">No port breakdown available.</div>';
+        return;
     }
+    Plotly.react('chart-physical-ports', [{
+        y: portNames, x: portNames.map(p => portData[p] * factor),
+        type: 'bar', orientation: 'h', marker: { color: COLORS.accent },
+        text: portNames.map(p => fmtInt(portData[p] * factor)), textposition: 'auto', textfont: { size: 10 },
+    }], mergeLayout({ height: 360, margin: { l: 145 }, xaxis: { title: unit } }), PLOTLY_CONFIG);
 }
 
-function _drawRobustaStocks(rob, robPorts, convertToBags) {
-    const rh = rob.history;
-    if (!rh || !rh.length) return;
-
-    const factor = convertToBags ? TONNES_TO_BAGS : 1;
-    const unit = convertToBags ? 'bags (60kg)' : 'lots';
-
-    const barWidth = rh.length > 1 ? 20 * 86400000 : 30 * 86400000;
-    Plotly.react('chart-inv-robusta', [{
-        x: rh.map(d => d.date),
-        y: rh.map(d => Math.round(d.value * factor)),
-        type: 'bar', name: 'Robusta Stocks',
-        marker: { color: COLORS.blue, opacity: 0.85 },
-        text: rh.map(d => fmtInt(Math.round(d.value * factor))),
-        textposition: 'outside', textfont: { size: 8, color: '#e8ecf1' },
-        width: rh.map(() => barWidth),
-    }], mergeLayout({ height: 380, yaxis: { title: unit } }), PLOTLY_CONFIG);
-
-    // Current levels by port (bar chart, sorted descending)
-    const portData = robPorts || {};
-    const portNames = Object.keys(portData).sort((a, b) => portData[b] - portData[a]);
-    if (portNames.length) {
-        Plotly.react('chart-rob-ports', [{
-            y: portNames, x: portNames.map(p => Math.round(portData[p] * factor)),
-            type: 'bar', orientation: 'h',
-            marker: { color: portNames.map((_, i) => i === 0 ? COLORS.blue : COLORS.purple) },
-            text: portNames.map(p => fmtInt(Math.round(portData[p] * factor))),
-            textposition: 'auto', textfont: { size: 10 },
-        }], mergeLayout({ height: 380, margin: { l: 60 }, xaxis: { title: unit } }), PLOTLY_CONFIG);
-    } else {
-        document.getElementById('chart-rob-ports').innerHTML =
-            '<div style="padding:2rem;color:var(--text-muted);text-align:center;">No robusta port data available.</div>';
-    }
+function renderPhysicalWatchlist(market) {
+    const isRobusta = market === 'Robusta';
+    const rows = isRobusta ? [
+        ['Vietnam flow', 'Watch certified drawdowns against Vietnam export pace and RC structure.'],
+        ['Port concentration', 'Large London/Antwerp concentration can make headline stocks less fungible.'],
+        ['Unit conversion', 'Use bags equivalent only for intuition; ICE Robusta stocks are reported in tonnes.'],
+    ] : [
+        ['Tenderable quality', 'Certified bags are exchange-grade; location and age matter for deliverability.'],
+        ['Spread confirmation', 'Drawdowns matter more when KC calendar spreads tighten at the same time.'],
+        ['Brazil flow', 'Compare certified changes with Brazil parity and differentials for replacement incentives.'],
+    ];
+    document.getElementById('physical-watchlist').innerHTML = rows.map(([k, v]) => `<div style="margin-bottom:0.55rem;"><b style="color:var(--text-primary);">${k}</b><br><span style="color:var(--text-muted);font-size:0.75rem;">${v}</span></div>`).join('');
 }
+
 
 // ═══════════════════════════════════════════════════════════════════════════
 // BRAZIL PARITY TAB
@@ -1470,7 +1489,7 @@ function renderCotTables(c, last) {
         </tbody></table>`;
 
     document.getElementById('pos-flow').innerHTML = `
-        <table class="data-table"><thead><tr><th>Date</th><th>MM net</th><th>MM WoW</th><th>Comm. WoW</th><th>OI</th></tr></thead><tbody>
+        <table class="data-table"><thead><tr><th>Date</th><th>MM Net</th><th>MM WoW</th><th>Commercial WoW</th><th>Open Interest</th></tr></thead><tbody>
         ${(c.recent_flow || []).slice().reverse().map(r => `<tr><td>${r.date}</td><td>${fmtSignedInt(r.mm_net)}</td><td class="${pctClass(r.mm_wow)}">${fmtSignedInt(r.mm_wow)}</td><td class="${pctClass(-r.prod_wow)}">${fmtSignedInt(r.prod_wow)}</td><td>${fmtInt(r.oi)}</td></tr>`).join('')}
         </tbody></table>`;
 }

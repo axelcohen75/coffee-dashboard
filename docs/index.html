@@ -155,55 +155,46 @@
 <!-- INVENTORY TAB                                                          -->
 <!-- ═══════════════════════════════════════════════════════════════════════ -->
 <div id="tab-inventory" class="tab-panel">
-    <h2 style="font-size:1rem;margin-bottom:0.5rem;">/// PHYSICAL <span style="color:var(--text-muted);font-size:0.75rem;">ICE CERTIFIED STOCKS — ARABICA & ROBUSTA</span></h2>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem;gap:1rem;">
+        <h2 style="font-size:1rem;margin:0;">/// PHYSICAL <span style="color:var(--text-muted);font-size:0.75rem;">ICE CERTIFIED STOCKS — ARABICA & ROBUSTA</span></h2>
+        <div id="physical-market-toggle" class="horizon-bar"></div>
+    </div>
+    <div class="footer" id="physical-source" style="margin-bottom:0.6rem;"></div>
+    <div class="kpi-row" id="physical-kpis"></div>
+    <div id="physical-read"></div>
 
-    <!-- ARABICA SECTION -->
-    <h3 style="font-size:0.8rem;margin:0.8rem 0 0.3rem;color:var(--text-secondary);font-family:var(--font-mono);letter-spacing:1px;">ARABICA — <span style="color:var(--text-muted);font-size:0.7rem;">Certified Stock Reports — Coffee — ICE Futures U.S.</span></h3>
-    <div class="kpi-row" id="inv-kpis-arabica"></div>
-    <div class="two-col">
-        <div class="panel">
-            <div class="panel-header">
-                <span class="panel-title">ARABICA STOCKS — HISTORICAL</span>
-                <div style="display:flex;align-items:center;gap:0.8rem;">
-                    <div class="horizon-bar" id="inv-arabica-horizon">
-                        <button class="horizon-btn active" data-horizon="1Y">1Y</button>
-                        <button class="horizon-btn" data-horizon="5Y">5Y</button>
-                        <button class="horizon-btn" data-horizon="MAX">MAX</button>
-                    </div>
-                    <label style="font-size:0.6rem;color:var(--text-secondary);display:flex;align-items:center;gap:0.3rem;cursor:pointer;white-space:nowrap;">
-                        <input type="checkbox" id="inv-price-overlay" style="accent-color:var(--accent);">
-                        Overlay KC price
-                    </label>
+    <div class="panel">
+        <div class="panel-header">
+            <span class="panel-title" id="physical-history-title">STOCKS — HISTORICAL</span>
+            <div style="display:flex;align-items:center;gap:0.8rem;">
+                <div class="horizon-bar" id="physical-horizon">
+                    <button class="horizon-btn active" data-horizon="1Y">1Y</button>
+                    <button class="horizon-btn" data-horizon="5Y">5Y</button>
+                    <button class="horizon-btn" data-horizon="MAX">MAX</button>
                 </div>
+                <label id="physical-price-overlay-wrap" style="font-size:0.6rem;color:var(--text-secondary);display:flex;align-items:center;gap:0.3rem;cursor:pointer;white-space:nowrap;">
+                    <input type="checkbox" id="physical-price-overlay" style="accent-color:var(--accent);">
+                    Overlay futures price
+                </label>
+                <label id="physical-unit-toggle-wrap" style="font-size:0.6rem;color:var(--text-secondary);display:none;align-items:center;gap:0.3rem;cursor:pointer;white-space:nowrap;">
+                    <input type="checkbox" id="physical-unit-toggle" style="accent-color:var(--accent);">
+                    Convert to bags (60kg)
+                </label>
             </div>
-            <div class="panel-body-flush"><div id="chart-inv-arabica" class="chart-container"></div></div>
         </div>
-        <div class="panel">
-            <div class="panel-header"><span class="panel-title">ARABICA — CURRENT LEVELS BY PORT</span></div>
-            <div class="panel-body-flush"><div id="chart-inv-ports" class="chart-container"></div></div>
-        </div>
+        <div class="panel-body-flush"><div id="chart-physical-history" class="chart-container"></div></div>
     </div>
 
-    <!-- ROBUSTA SECTION -->
-    <h3 style="font-size:0.8rem;margin:0.8rem 0 0.3rem;color:var(--text-secondary);font-family:var(--font-mono);letter-spacing:1px;display:flex;align-items:center;gap:1rem;flex-wrap:wrap;">
-        <span>ROBUSTA — <span style="color:var(--text-muted);font-size:0.7rem;">Robusta Coffee — ICE Futures Europe (Stock Figures Reports)</span></span>
-        <label style="font-size:0.6rem;color:var(--text-secondary);display:flex;align-items:center;gap:0.3rem;cursor:pointer;white-space:nowrap;margin-left:auto;">
-            <input type="checkbox" id="inv-unit-toggle" style="accent-color:var(--accent);">
-            Convert to bags (60kg)
-        </label>
-    </h3>
-    <div class="kpi-row" id="inv-kpis-robusta"></div>
-    <div class="two-col">
+    <div class="two-col" style="margin-top:0.8rem;">
         <div class="panel">
-            <div class="panel-header"><span class="panel-title">ROBUSTA STOCKS — HISTORICAL</span></div>
-            <div class="panel-body-flush"><div id="chart-inv-robusta" class="chart-container"></div></div>
+            <div class="panel-header"><span class="panel-title" id="physical-ports-title">CURRENT LEVELS BY PORT</span></div>
+            <div class="panel-body-flush"><div id="chart-physical-ports" class="chart-container"></div></div>
         </div>
         <div class="panel">
-            <div class="panel-header"><span class="panel-title">ROBUSTA — CURRENT LEVELS BY PORT</span></div>
-            <div class="panel-body-flush"><div id="chart-rob-ports" class="chart-container"></div></div>
+            <div class="panel-header"><span class="panel-title">WHAT TO WATCH</span></div>
+            <div class="panel-body" id="physical-watchlist"></div>
         </div>
     </div>
-    <div class="footer" id="inv-note"></div>
 </div>
 
 <!-- ═══════════════════════════════════════════════════════════════════════ -->

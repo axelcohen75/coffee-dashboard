@@ -456,12 +456,6 @@ function renderOptions() {
                 </div>
             </div>
 
-            <div class="opt-panel">
-                <div class="opt-panel-title">PORTFOLIO LEGS <span class="opt-badge" id="opt-leg-count">0</span></div>
-                <div id="opt-legs-list" class="opt-legs-list">
-                    <div class="opt-empty">No positions yet.</div>
-                </div>
-            </div>
         </div>
 
         <!-- MAIN CHARTS -->
@@ -519,7 +513,7 @@ function renderOptions() {
                     <label class="opt-label-sm">MC Sims
                         <input type="number" id="risk-sims" value="10000" min="1000" max="100000" step="1000" class="opt-input-sm">
                     </label>
-                    <button class="opt-btn opt-btn-accent" onclick="optUpdateRisk()" style="align-self:flex-end;">Run</button>
+                    <button class="opt-btn opt-btn-accent opt-risk-run" onclick="optUpdateRisk()">Run</button>
                 </div>
 
                 <div class="opt-risk-grid">
@@ -872,12 +866,14 @@ function _injectOptionsCSS() {
         margin-bottom: 10px;
     }
     .opt-risk-controls {
-        display: flex;
+        display: grid;
+        grid-template-columns: minmax(160px, 1fr) minmax(160px, 1fr) minmax(120px, 170px) auto;
         gap: 12px;
-        align-items: flex-end;
+        align-items: end;
         margin-bottom: 12px;
-        flex-wrap: wrap;
     }
+    .opt-risk-controls .opt-label-sm { margin-bottom: 0; }
+    .opt-risk-run { flex: none; min-width: 76px; height: 30px; }
     .opt-risk-grid {
         display: grid;
         grid-template-columns: 1fr 1fr;
@@ -1157,7 +1153,7 @@ function _renderPortfolioDetail() {
     });
 
     let html = `<div class="opt-risk-card">
-        <div class="opt-risk-card-title">PORTFOLIO LEGS</div>
+        <div class="opt-risk-card-title">LEG GREEKS DETAIL</div>
         <table class="opt-greeks-detail-table">
         <thead><tr>
             <th>Leg</th><th>Value</th><th>Delta</th><th>Gamma</th><th>Vega</th><th>Theta/d</th><th>Rho</th>
@@ -1275,8 +1271,9 @@ function _drawPayoffChart() {
             return total;
         });
         traces.push({
-            x: spots, y: currentVal, name: 'Current P&L',
+            x: spots, y: currentVal, name: 'MTM P&L (same IV/DTE)',
             line: { color: COLORS.orange, width: 1.5, dash: 'dot' },
+            hovertemplate: 'Underlying: %{x:.2f}<br>MTM P&L: %{y:.2f}<extra>Same IV/DTE</extra>',
         });
 
         const legColors = [COLORS.blue, COLORS.purple, COLORS.yellow, COLORS.red];
