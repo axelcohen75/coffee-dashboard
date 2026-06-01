@@ -100,7 +100,6 @@ function setupTabs() {
             document.getElementById('tab-' + target).classList.add('active');
             if (target === 'inventory' && !document.getElementById('tab-inventory').dataset.rendered) renderInventory();
             if (target === 'brazil' && !document.getElementById('tab-brazil').dataset.rendered) renderBrazil();
-            if (target === 'differentials' && !document.getElementById('tab-differentials').dataset.rendered) renderDifferentials();
             if (target === 'weather' && !document.getElementById('tab-weather').dataset.rendered) renderWeather();
             if (target === 'positioning' && !document.getElementById('tab-positioning').dataset.rendered) renderPositioning();
             if (target === 'options' && !document.getElementById('tab-options').dataset.rendered) {
@@ -1313,7 +1312,7 @@ function renderPhysicalWatchlist(market) {
     ] : [
         ['Tenderable quality', 'Certified bags are exchange-grade; location and age matter for deliverability.'],
         ['Spread confirmation', 'Drawdowns matter more when KC calendar spreads tighten at the same time.'],
-        ['Brazil flow', 'Compare certified changes with Brazil parity and differentials for replacement incentives.'],
+        ['Brazil flow', 'Compare certified changes with Brazil export parity for replacement incentives.'],
     ];
     document.getElementById('physical-watchlist').innerHTML = rows.map(([k, v]) => `<div style="margin-bottom:0.55rem;"><b style="color:var(--text-primary);">${k}</b><br><span style="color:var(--text-muted);font-size:0.75rem;">${v}</span></div>`).join('');
 }
@@ -1396,77 +1395,6 @@ function renderBrazil() {
         html += '</tbody></table>';
         el.innerHTML = html;
     }
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// DIFFERENTIALS TAB
-// ═══════════════════════════════════════════════════════════════════════════
-
-function renderDifferentials() {
-    document.getElementById('tab-differentials').dataset.rendered = '1';
-    const d = DATA.differentials;
-    if (!d || !d.origins) return;
-
-    let kpiHtml = '';
-    for (const [name, info] of Object.entries(d.origins)) {
-        const zCls = Math.abs(info.zscore_2y) > 2 ? 'down' : Math.abs(info.zscore_2y) > 1 ? 'neutral' : 'up';
-        kpiHtml += `<div class="kpi-card">
-            <div class="kpi-label">${name}</div>
-            <div class="kpi-value">${info.current >= 0 ? '+' : ''}${fmtNum(info.current, 1)} ¢/lb</div>
-            <div class="kpi-delta ${zCls}">Z: ${info.zscore_2y >= 0 ? '+' : ''}${fmtNum(info.zscore_2y, 2)}σ</div>
-            <div style="font-size:0.6rem;color:var(--text-muted);margin-top:0.2rem;">${info.region}</div>
-        </div>`;
-    }
-    document.getElementById('diff-kpis').innerHTML = kpiHtml;
-
-    const traces = [];
-    for (const [name, info] of Object.entries(d.origins)) {
-        if (!info.history || !info.history.length) continue;
-        traces.push({
-            x: info.history.map(d => d.date),
-            y: info.history.map(d => d.value),
-            name: name,
-            line: { color: DIFF_COLORS[name] || COLORS.accent, width: 1.5 },
-        });
-    }
-
-    Plotly.react('chart-diff-history', traces, mergeLayout({
-        height: 400,
-        yaxis: { title: 'differential (¢/lb vs futures)' },
-        shapes: [{ type: 'line', y0: 0, y1: 0, x0: 0, x1: 1, xref: 'paper',
-            line: { color: 'rgba(200,200,200,0.2)', width: 1 } }],
-    }), PLOTLY_CONFIG);
-
-    renderDiffHeatmap(Object.keys(d.origins)[0]);
-    const sel = document.getElementById('diff-origin-select');
-    sel.innerHTML = Object.keys(d.origins).map(n => `<option value="${n}">${n}</option>`).join('');
-    sel.addEventListener('change', () => renderDiffHeatmap(sel.value));
-}
-
-function renderDiffHeatmap(originName) {
-    const info = DATA.differentials.origins[originName];
-    if (!info || !info.heatmap || !info.heatmap.length) return;
-
-    const years = [...new Set(info.heatmap.map(h => h.year))].sort();
-    const zData = years.map(yr =>
-        MONTHS.map((_, mi) => {
-            const entry = info.heatmap.find(h => h.year === yr && h.month === mi + 1);
-            return entry ? entry.value : null;
-        })
-    );
-
-    Plotly.react('chart-diff-heatmap', [{
-        z: zData, x: MONTHS, y: years.map(String),
-        type: 'heatmap',
-        colorscale: [[0, '#264653'], [0.5, '#2A9D8F'], [1, '#E76F51']],
-        text: zData.map(row => row.map(v => v != null ? v.toFixed(1) : '')),
-        texttemplate: '%{text}',
-        hoverongaps: false,
-        colorbar: { title: '¢/lb', tickfont: { size: 9 } },
-    }], mergeLayout({
-        height: 300,
-        title: { text: `${originName} — Monthly Differential`, font: { size: 11, color: COLORS.muted } },
-    }), PLOTLY_CONFIG);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

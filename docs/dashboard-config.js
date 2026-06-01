@@ -65,12 +65,6 @@ const PHENOLOGY = [
 
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
-const DIFF_COLORS = {
-    'Colombian Milds': COLORS.accent,
-    'Other Milds': COLORS.orange,
-    'Brazilian Naturals': COLORS.blue,
-    'Robustas': COLORS.red,
-};
 
 /* Helpers */
 

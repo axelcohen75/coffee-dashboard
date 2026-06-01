@@ -456,6 +456,7 @@ def fetch_brazil() -> dict:
     kc_hist = _yf("KC=F", "5y")
     kc_s = kc_hist["Close"] if not kc_hist.empty else pd.Series(dtype=float)
 
+    # Placeholder FOB Santos vs KC (¢/lb): not sourced from market data.
     differential = -5.0
     parity = None
     parity_history = []
@@ -1035,55 +1036,6 @@ def generate_stocks_data() -> dict:
     return result
 
 
-def generate_differentials() -> dict:
-    """ICO differential data — simulated."""
-    print("  Generating simulated differentials…")
-    np.random.seed(123)
-    dates = pd.bdate_range("2019-01-01", pd.Timestamp.now().normalize())
-    n = len(dates)
-
-    origins = {
-        "Colombian Milds": {"base": 15.0, "region": "Colombia, Kenya, Tanzania", "phase": 0},
-        "Other Milds": {"base": 5.0, "region": "Guatemala, Honduras, Ethiopia", "phase": 1},
-        "Brazilian Naturals": {"base": -8.0, "region": "Brazil, Ethiopia (natural)", "phase": 3},
-        "Robustas": {"base": -3.0, "region": "Vietnam, Indonesia, Uganda", "phase": 5},
-    }
-
-    result = {}
-    for name, info in origins.items():
-        seasonal = 5.0 * np.sin(np.arange(n) * 2 * np.pi / 252 + info["phase"])
-        trend = np.linspace(0, np.random.uniform(-5, 10), n)
-        noise = np.cumsum(np.random.randn(n) * 0.3)
-        diff = info["base"] + seasonal + trend + noise
-
-        current = round(float(diff[-1]), 1)
-        cutoff_2y = max(0, n - 504)
-        sub = diff[cutoff_2y:]
-        zscore = round(float((sub[-1] - sub.mean()) / sub.std()), 2) if sub.std() > 0 else 0
-
-        # Monthly heatmap
-        df_temp = pd.DataFrame({"diff": diff}, index=dates)
-        df_temp["month"] = df_temp.index.month
-        df_temp["year"] = df_temp.index.year
-        pivot = df_temp.pivot_table(values="diff", index="year", columns="month", aggfunc="mean")
-        heatmap = []
-        for yr in pivot.index:
-            for mo in pivot.columns:
-                val = pivot.loc[yr, mo]
-                if pd.notna(val):
-                    heatmap.append({"year": int(yr), "month": int(mo), "value": round(float(val), 1)})
-
-        result[name] = {
-            "region": info["region"],
-            "current": current,
-            "zscore_2y": zscore,
-            "history": [{"date": d.strftime("%Y-%m-%d"), "value": round(float(v), 2)}
-                        for d, v in list(zip(dates, diff))[::3]],
-            "heatmap": heatmap,
-        }
-
-    return {"simulated": True, "origins": result}
-
 
 # ══════════════════════════════════════════════════════════════════════════════
 # MAIN
@@ -1106,7 +1058,6 @@ def main():
     data["news"] = fetch_news()
     data["polymarket"] = fetch_polymarket()
     data["stocks"] = generate_stocks_data()
-    data["differentials"] = generate_differentials()
 
     OUT.parent.mkdir(parents=True, exist_ok=True)
     with open(OUT, "w") as f:
