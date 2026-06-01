@@ -291,17 +291,19 @@ function renderSpotPrices() {
         { key: 'dxy', label: 'DXY (Dollar Index)' },
     ];
 
-    let html = `<div style="display:flex;justify-content:flex-end;gap:0.5rem;margin-bottom:0.3rem;padding:0 0.2rem;">
+    let html = `<div class="spot-perf-header">
         <span class="spot-perf-label">1M</span>
         <span class="spot-perf-label">YTD</span>
     </div>`;
 
+    html += `<div class="spot-prices-content">`;
     html += `<div class="spot-category">COFFEE</div>`;
     html += _renderSpotRows(coffeeAssets);
     html += `<div class="spot-category spot-category-spreads">SPREADS</div>`;
     html += _renderSpotRows(spreadAssets, 'spread');
-    html += `<div class="spot-category" style="margin-top:0.4rem;">FX</div>`;
+    html += `<div class="spot-category spot-category-fx">FX</div>`;
     html += _renderSpotRows(fxAssets);
+    html += `</div>`;
 
     el.innerHTML = html;
 }
@@ -1045,7 +1047,7 @@ function renderNews() {
     });
 
     let html = '';
-    for (const a of news.slice(0, 12)) {
+    for (const a of news.slice(0, 18)) {
         const summary = a.summary.replace(/&nbsp;/g, ' ').replace(/<[^>]+>/g, '');
         html += `
         <div class="news-item">
@@ -1054,7 +1056,7 @@ function renderNews() {
                 <span class="news-age">${a.age || ''}</span>
             </div>
             <div class="news-title">${escHtml(a.title.slice(0, 100))}</div>
-            <div class="news-summary">${escHtml(summary.slice(0, 180))}…</div>
+            <div class="news-summary">${escHtml(summary.slice(0, 220))}${summary.length > 220 ? "…" : ""}</div>
             <a class="news-link" href="${a.url}" target="_blank" rel="noopener">READ ARTICLE →</a>
         </div>`;
     }

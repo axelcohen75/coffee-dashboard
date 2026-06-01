@@ -41,19 +41,20 @@
     <div class="overview-grid">
         <!-- LEFT: Stock Badges + Key Dates + News (wide) -->
         <div class="overview-left">
-            <div id="overview-stock-badges" style="margin-bottom:0.6rem;"></div>
+            <div class="overview-stock-row" id="overview-stock-badges"></div>
 
-            <div class="panel">
+            <div class="panel overview-panel-keydates">
                 <div class="panel-header">
                     <span class="panel-title">KEY DATES</span>
                     <span class="panel-subtitle">Economic Calendar</span>
                 </div>
-                <div class="panel-body" id="key-dates"></div>
+                <div class="panel-body panel-body-compact" id="key-dates"></div>
             </div>
 
-            <div class="panel" style="margin-top:0.6rem;">
+            <div class="panel overview-panel-fill overview-panel-news">
                 <div class="panel-header">
                     <span class="panel-title">COFFEE NEWS</span>
+                    <span class="panel-subtitle">Latest headlines</span>
                 </div>
                 <div class="panel-body news-list" id="news-list">
                     <div class="loading">Loading…</div>
@@ -63,12 +64,12 @@
 
         <!-- MIDDLE: Spot Prices -->
         <div class="overview-mid">
-            <div class="panel">
+            <div class="panel overview-panel-fill overview-panel-spot">
                 <div class="panel-header">
                     <span class="panel-title">SPOT PRICES</span>
                     <span class="panel-subtitle">Click to chart</span>
                 </div>
-                <div class="panel-body" id="spot-prices">
+                <div class="panel-body spot-prices-body" id="spot-prices">
                     <div class="loading">Loading…</div>
                 </div>
             </div>
