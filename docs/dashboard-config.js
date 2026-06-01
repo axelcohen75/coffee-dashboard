@@ -38,7 +38,7 @@ const SPOT_ITEMS = [
     { key: 'kc', label: 'KC Arabica', unit: '¢/lb', color: COLORS.accent },
     { key: 'rc', label: 'Robusta', unit: '$/t', color: COLORS.blue },
     { key: 'rc_cl', label: 'RC (¢/lb)', unit: '¢/lb', color: COLORS.blue },
-    { key: 'arb_rob', label: 'Arb-Rob Spread', unit: '¢/lb', color: COLORS.orange },
+    { key: 'arb_rob', label: 'KC-RC', unit: '¢/lb', color: COLORS.orange },
 ];
 
 const SPREAD_DEFS = [

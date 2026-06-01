@@ -250,7 +250,7 @@ function getAssetData(key) {
     if (key === 'kc') return { label: 'KC Arabica', price: f.kc.front, unit: '¢/lb', history: f.kc.history, color: COLORS.accent };
     if (key === 'rc') return { label: 'RC Robusta', price: f.rc.front, unit: '$/t', history: f.rc.history, color: COLORS.blue };
     if (key === 'rc_cl') return { label: 'RC (¢/lb)', price: f.rc.front_cents_lb, unit: '¢/lb', history: f.rc.history_cents_lb, color: '#6BA3BE' };
-    if (key === 'arb_rob') return { label: 'Arb-Rob Spread', price: f.arb_rob?.current, unit: '¢/lb', history: f.arb_rob?.history, color: COLORS.orange };
+    if (key === 'arb_rob') return { label: 'KC-RC', price: f.arb_rob?.current, unit: '¢/lb', history: f.arb_rob?.history, color: COLORS.orange };
     if (key === 'brl') return { label: 'BRL/USD', price: DATA.brazil?.fx, unit: '', history: DATA.brazil?.fx_history, color: COLORS.yellow };
     if (key === 'cepea') return { label: 'CEPEA/ESALQ', price: DATA.cepea?.current, unit: 'US$/bag', history: DATA.cepea?.history, color: COLORS.purple };
     if (key === 'dxy') return { label: 'DXY', price: DATA.dxy?.current, unit: '', history: DATA.dxy?.history, color: '#aab4c2' };
@@ -284,7 +284,7 @@ function renderSpotPrices() {
         { key: 'cepea', label: 'CEPEA/ESALQ' },
     ];
     const spreadAssets = [
-        { key: 'arb_rob', label: 'Arabica-Robusta Spread' },
+        { key: 'arb_rob', label: 'KC-RC' },
     ];
     const fxAssets = [
         { key: 'brl', label: 'BRL/USD (PTAX)' },
