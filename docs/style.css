@@ -449,7 +449,7 @@ body {
     gap: 0.5rem;
     align-items: center;
     flex-wrap: wrap;
-    margin-bottom: 0.3rem;
+    margin: 0;
 }
 
 .ts-date-tag {
@@ -1056,4 +1056,58 @@ select:focus { border-color: var(--accent); }
 }
 @media (max-width: 1400px) {
     .futures-section-top { grid-template-columns: 1fr; }
+}
+/* ── Futures chart panels (aligned pair) ─────────────────────────────── */
+.futures-charts-row {
+    align-items: stretch;
+}
+
+.futures-chart-panel {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+
+.futures-chart-header {
+    min-height: 42px;
+    align-items: flex-start;
+}
+
+.futures-chart-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.6rem;
+    min-height: 36px;
+    padding: 0.35rem 0.8rem;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+}
+
+.futures-chart-toolbar-meta {
+    font-size: 0.68rem;
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+    white-space: nowrap;
+}
+
+.futures-chart-body .futures-chart {
+    height: 280px;
+    min-height: 280px;
+}
+
+.futures-chart-footer {
+    min-height: 30px;
+    padding: 0.25rem 0.8rem 0.35rem;
+    flex-shrink: 0;
+}
+
+.ts-date-input {
+    background: var(--bg-card);
+    color: var(--text-primary);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 0.25rem 0.4rem;
+    font-size: 0.7rem;
+    font-family: var(--font-sans);
 }

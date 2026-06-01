@@ -9,6 +9,8 @@ let activeSpread = null;
 let selectedAssets = ['kc'];
 let selectedCotMarket = null;
 let selectedFuturesMarket = 'Arabica';
+const FUTURES_CHART_HEIGHT = 280;
+const FUTURES_CHART_LAYOUT = { height: FUTURES_CHART_HEIGHT, margin: { t: 8, r: 12, l: 45, b: 32 } };
 
 async function init() {
     try {
@@ -705,10 +707,11 @@ function renderTermStructure() {
         const prefix = isRobusta ? 'RC' : 'KC';
         titleText = `${prefix} — ${structure} (${slope > 0 ? '+' : ''}${slope}%)`;
     }
+    const metaEl = document.getElementById('term-structure-meta');
+    if (metaEl) metaEl.textContent = titleText;
 
     const layout = {
-        height: 310,
-        title: { text: titleText, font: { size: 11, color: COLORS.muted } },
+        ...FUTURES_CHART_LAYOUT,
         yaxis: { title: isRobusta ? '$/t' : '¢/lb' },
     };
     Plotly.react('chart-term-structure', traces, mergeLayout(layout), PLOTLY_CONFIG);
@@ -873,9 +876,11 @@ function renderSpreadChart(history, mean, current, name, unit = '¢/lb') {
         });
     }
 
+    const metaEl = document.getElementById('spread-chart-meta');
+    if (metaEl) metaEl.textContent = `Current: ${fmtNum(current)} ${unit}`;
+
     Plotly.react('chart-spread-monitor', traces, mergeLayout({
-        height: 310,
-        title: { text: `Current: ${fmtNum(current)} ${unit}`, font: { size: 11, color: COLORS.muted } },
+        ...FUTURES_CHART_LAYOUT,
         yaxis: { title: unit },
         shapes, annotations,
     }), PLOTLY_CONFIG);
@@ -888,6 +893,9 @@ function renderRobustaSpreadChart(payload) {
     const selectedIdx = defs.findIndex(d => d.key === activeSpread);
     const barColors = defs.map((d, i) => i === selectedIdx ? COLORS.accent : 'rgba(69,123,157,0.55)');
 
+    const metaEl = document.getElementById('spread-chart-meta');
+    if (metaEl) metaEl.textContent = `Selected: ${fmtNum(payload.current, 0)} $/t (curve snapshot)`;
+
     Plotly.react('chart-spread-monitor', [{
         x: labels,
         y: values,
@@ -895,8 +903,7 @@ function renderRobustaSpreadChart(payload) {
         marker: { color: barColors },
         hovertemplate: '%{x}<br>%{y:.0f} $/t<extra></extra>',
     }], mergeLayout({
-        height: 310,
-        title: { text: `Selected: ${fmtNum(payload.current, 0)} $/t (curve snapshot)`, font: { size: 11, color: COLORS.muted } },
+        ...FUTURES_CHART_LAYOUT,
         yaxis: { title: '$/t' },
     }), PLOTLY_CONFIG);
 }

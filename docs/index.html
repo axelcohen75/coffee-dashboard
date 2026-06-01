@@ -125,33 +125,40 @@
                             <div id="spread-dashboard"></div>
                         </div>
                     </div>
-                    <div class="two-col" style="margin-top:0.6rem;">
-                        <div class="panel futures-inner-panel">
-                            <div class="panel-header">
+                    <div class="two-col futures-charts-row" style="margin-top:0.6rem;">
+                        <div class="panel futures-inner-panel futures-chart-panel">
+                            <div class="panel-header futures-chart-header">
                                 <div>
                                     <span class="panel-title">TIMESPREAD</span>
                                     <span class="panel-subtitle" id="spread-chart-subtitle"> KC N-Z (Jul-Dec) // ¢/lb</span>
                                 </div>
                             </div>
-                            <div class="panel-body-flush">
-                                <div id="chart-spread-monitor" class="chart-container"></div>
+                            <div class="futures-chart-toolbar">
+                                <span class="futures-chart-toolbar-meta" id="spread-chart-meta">Current: —</span>
                             </div>
+                            <div class="panel-body-flush futures-chart-body">
+                                <div id="chart-spread-monitor" class="chart-container futures-chart"></div>
+                            </div>
+                            <div class="futures-chart-footer" aria-hidden="true"></div>
                         </div>
-                        <div class="panel futures-inner-panel">
-                            <div class="panel-header">
+                        <div class="panel futures-inner-panel futures-chart-panel">
+                            <div class="panel-header futures-chart-header">
                                 <div>
                                     <span class="panel-title">FUTURES TERM STRUCTURE</span>
                                     <span class="panel-subtitle" id="term-structure-subtitle"> KC ARABICA // DELIVERY MONTH</span>
                                 </div>
+                            </div>
+                            <div class="futures-chart-toolbar">
+                                <span class="futures-chart-toolbar-meta" id="term-structure-meta">—</span>
                                 <div class="ts-controls" id="ts-compare-controls">
-                                    <input type="date" id="ts-compare-date" style="background:var(--bg-card);color:var(--text-primary);border:1px solid var(--border);border-radius:3px;padding:0.25rem 0.4rem;font-size:0.7rem;font-family:var(--font-sans);">
-                                    <button class="btn-refresh" id="ts-add-date" style="padding:0.25rem 0.6rem;">ADD DATE</button>
+                                    <input type="date" id="ts-compare-date" class="ts-date-input">
+                                    <button class="btn-refresh" id="ts-add-date">ADD DATE</button>
                                 </div>
                             </div>
-                            <div class="panel-body-flush">
-                                <div id="chart-term-structure" class="chart-container"></div>
+                            <div class="panel-body-flush futures-chart-body">
+                                <div id="chart-term-structure" class="chart-container futures-chart"></div>
                             </div>
-                            <div id="ts-date-tags" style="padding:0.3rem 0.8rem;"></div>
+                            <div class="futures-chart-footer" id="ts-date-tags"></div>
                         </div>
                     </div>
                 </div>
