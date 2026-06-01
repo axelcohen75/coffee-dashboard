@@ -1023,7 +1023,7 @@ function renderKeyDates() {
     const upcoming = keyDates
         .filter(d => d.date >= new Date(now.getFullYear(), now.getMonth(), now.getDate()))
         .sort((a, b) => a.date - b.date)
-        .slice(0, 5);
+        .slice(0, 8);
 
     if (!upcoming.length) {
         el.innerHTML = '<div style="color:var(--text-muted);font-size:0.75rem;">No upcoming dates.</div>';

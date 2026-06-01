@@ -143,7 +143,7 @@ body {
     grid-template-columns: 340px 360px minmax(520px, 1fr);
     grid-template-rows: auto minmax(0, 32vh) minmax(0, 1fr);
     grid-template-areas:
-        "badges . charts-top"
+        "badges spot charts-top"
         "keydates spot charts-top"
         "news news charts-bottom";
     gap: 0.6rem;
