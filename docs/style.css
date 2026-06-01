@@ -142,8 +142,6 @@ body {
 
 .overview-left {
     min-width: 0;
-    max-height: calc(100vh - 60px);
-    overflow-y: auto;
 }
 
 .overview-mid {
@@ -479,33 +477,6 @@ body {
 .alert-warning { background: rgba(244,162,97,0.15); border: 1px solid var(--orange); color: var(--orange); }
 .alert-ok { background: rgba(0,184,148,0.08); border: 1px solid var(--border); color: var(--accent); }
 
-
-/* ── Compact data tables ───────────────────────────────────────────────── */
-
-.data-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 0.72rem;
-}
-.data-table th {
-    color: var(--text-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.6px;
-    font-size: 0.62rem;
-    font-weight: 700;
-    padding: 0.35rem 0.25rem;
-    border-bottom: 1px solid var(--border);
-    text-align: right;
-}
-.data-table th:first-child, .data-table td:first-child { text-align: left; }
-.data-table td {
-    padding: 0.35rem 0.25rem;
-    border-bottom: 1px solid rgba(30,42,58,0.55);
-    text-align: right;
-    font-family: var(--font-mono);
-}
-.data-table td:first-child { font-family: var(--font-sans); color: var(--text-secondary); }
-
 /* ── Chart containers ────────────────────────────────────────────────── */
 
 .chart-container {
@@ -732,6 +703,16 @@ select:focus { border-color: var(--accent); }
     min-width: 25px;
 }
 
+.spot-category {
+    font-family: var(--font-mono);
+    font-size: 0.55rem;
+    font-weight: 700;
+    color: var(--text-muted);
+    letter-spacing: 1.5px;
+    padding: 0.2rem 0.4rem;
+    border-bottom: 1px solid var(--border);
+}
+
 /* ── Key dates calendar ─────────────────────────────────────────────── */
 
 .key-date-item {
@@ -791,6 +772,91 @@ select:focus { border-color: var(--accent); }
 .tag-brazil { background: rgba(233,196,106,0.15); color: var(--yellow); }
 .tag-weather { background: rgba(231,111,81,0.15); color: var(--red); }
 .tag-ico { background: rgba(155,93,229,0.15); color: var(--purple); }
+
+/* ── Stock badges (overview) ─────────────────────────────────────────── */
+
+.stock-badge {
+    display: flex;
+    flex-direction: column;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 0.4rem 0.7rem;
+    flex: 1;
+    min-width: 0;
+}
+
+.stock-badge-label {
+    font-size: 0.55rem;
+    color: var(--text-muted);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+}
+
+.stock-badge-value {
+    font-size: 0.85rem;
+    font-weight: 700;
+    font-family: var(--font-mono);
+    color: var(--text-primary);
+}
+
+.stock-badge-sub {
+    font-size: 0.55rem;
+    color: var(--text-muted);
+}
+
+/* ── Asset stats panel ──────────────────────────────────────────────── */
+
+.chart-stats-row {
+    display: flex;
+    gap: 0.8rem;
+}
+
+.asset-stats-panel {
+    width: 220px;
+    flex-shrink: 0;
+}
+
+.stat-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 0.25rem 0;
+    border-bottom: 1px solid rgba(30,42,58,0.4);
+    font-size: 0.7rem;
+}
+
+.stat-label {
+    color: var(--text-secondary);
+}
+
+.stat-value {
+    font-family: var(--font-mono);
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.stat-value.up { color: var(--green); }
+.stat-value.down { color: var(--red); }
+
+.corr-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.6rem;
+    font-family: var(--font-mono);
+    margin-top: 0.3rem;
+}
+
+.corr-table th, .corr-table td {
+    padding: 0.2rem 0.3rem;
+    text-align: center;
+    border: 1px solid var(--border);
+}
+
+.corr-table th {
+    color: var(--text-muted);
+    font-weight: 600;
+    background: rgba(0,184,148,0.05);
+}
 
 /* ── Loading ─────────────────────────────────────────────────────────── */
 

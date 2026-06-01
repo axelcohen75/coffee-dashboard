@@ -132,6 +132,44 @@ def _load_rc_csv() -> pd.DataFrame:
     return pd.DataFrame()
 
 
+
+def _load_two_column_history(filename: str, value_col: str | None = None) -> dict:
+    """Load a Date/value CSV from data/ into dashboard JSON shape."""
+    path = DATA_DIR / filename
+    if not path.exists():
+        return {"current": None, "history": [], "source": filename}
+    try:
+        df = pd.read_csv(path)
+        if "Date" not in df.columns:
+            return {"current": None, "history": [], "source": filename}
+        if value_col is None:
+            candidates = [c for c in df.columns if c != "Date"]
+            value_col = candidates[0] if candidates else None
+        if value_col is None or value_col not in df.columns:
+            return {"current": None, "history": [], "source": filename}
+        df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
+        df[value_col] = pd.to_numeric(df[value_col], errors="coerce")
+        df = df.dropna(subset=["Date", value_col]).sort_values("Date")
+        history = [{"date": d.strftime("%Y-%m-%d"), "value": round(float(v), 4)} for d, v in zip(df["Date"], df[value_col])]
+        return {
+            "current": history[-1]["value"] if history else None,
+            "history": history,
+            "source": filename,
+        }
+    except Exception as exc:
+        print(f"    Failed to load {filename}: {exc}")
+        return {"current": None, "history": [], "source": filename}
+
+
+def load_cepea_data() -> dict:
+    print("  Loading CEPEA Arabica CSV…")
+    return _load_two_column_history("cepea_arabica_usd_bag.csv", "Price US$")
+
+
+def fetch_dxy() -> dict:
+    print("  Loading DXY history…")
+    return _load_two_column_history("dxy_index_history.csv", "Price")
+
 # ── Seasonal ─────────────────────────────────────────────────────────────────
 
 def _seasonal(s: pd.Series) -> list[dict]:
@@ -868,11 +906,20 @@ def generate_stocks_data() -> dict:
             one_month_ago = int(df[total_col].iloc[one_month_idx])
             history = [{"date": row["Date"].strftime("%Y-%m-%d"), "value": int(row[total_col])}
                        for _, row in df.iterrows()]
+            port_cols = [c for c in df.columns if c not in ("Date", "Total", "date", "total")]
+            robusta_ports = {}
+            if port_cols:
+                last_row = df.iloc[-1]
+                for c in port_cols:
+                    val = last_row.get(c)
+                    if pd.notna(val) and float(val) > 0:
+                        robusta_ports[c] = int(float(val))
             result["robusta"] = {
                 "current": current,
                 "one_month_ago": one_month_ago,
                 "history": history,
             }
+            result["robusta_ports"] = robusta_ports
             print(f"    Robusta stocks: {len(history)} rows, current={current:,}")
         except Exception as e:
             print(f"    Failed to load robusta stocks CSV: {e}")
@@ -948,6 +995,8 @@ def main():
     data["forward_curve"] = fetch_forward_curve()
     data["spreads"] = fetch_spreads()
     data["brazil"] = fetch_brazil()
+    data["cepea"] = load_cepea_data()
+    data["dxy"] = fetch_dxy()
     data["weather"] = fetch_weather()
     data["cot"] = fetch_cot()
     data["news"] = fetch_news()

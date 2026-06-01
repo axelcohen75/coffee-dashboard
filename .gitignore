@@ -1,6 +1,8 @@
 # Data files — keep only canonical runtime CSVs tracked
 data/*.csv
 !data/robusta_futures_price_history.csv
+!data/dxy_index_history.csv
+!data/cepea_arabica_usd_bag.csv
 !data/stocks_robusta_ice_certified_by_port.csv
 !data/stocks_arabica_ice_certified_by_port.csv
 !data/cot_arabica_disaggregated.csv

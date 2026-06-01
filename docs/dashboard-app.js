@@ -15,12 +15,24 @@ async function init() {
         DATA = await resp.json();
         document.getElementById('last-updated').textContent =
             'Updated ' + new Date(DATA.generated).toUTCString().slice(0, 25) + ' UTC';
-        renderOverview();
-        setupTabs();
     } catch (e) {
         document.getElementById('main-content').innerHTML =
             '<div class="loading">Failed to load data. Run: python scripts/fetch_market_data.py</div>';
+        return;
     }
+    try {
+        await _loadCSVData();
+        renderOverview();
+        setupTabs();
+    } catch (e) {
+        console.error('Render error:', e);
+    }
+}
+
+
+async function _loadCSVData() {
+    // Canonical CSVs are loaded by scripts/fetch_market_data.py into market-data.json.
+    return Promise.resolve();
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -53,8 +65,10 @@ function setupTabs() {
 // ═══════════════════════════════════════════════════════════════════════════
 
 function renderOverview() {
+    renderOverviewStockBadges();
     renderSpotPrices();
     renderPriceEvolution('1Y');
+    renderAssetStats();
     renderTermStructure();
     renderSpreadDashboard();
     selectSpread('nz');
@@ -63,6 +77,157 @@ function renderOverview() {
     setupHorizonButtons();
     setupTermStructureCompare();
     setupSeasonalToggle();
+}
+
+function renderOverviewStockBadges() {
+    const el = document.getElementById('overview-stock-badges');
+    if (!el) return;
+    const s = DATA.stocks;
+    if (!s) { el.innerHTML = ''; return; }
+
+    const arab = s.arabica || {};
+    const rob = s.robusta || {};
+
+    const arabPct = arab.one_month_ago ? ((arab.current - arab.one_month_ago) / arab.one_month_ago * 100).toFixed(1) : '0.0';
+    const arabUp = parseFloat(arabPct) >= 0;
+    const robPct = rob.one_month_ago ? ((rob.current - rob.one_month_ago) / rob.one_month_ago * 100).toFixed(1) : '0.0';
+    const robUp = parseFloat(robPct) >= 0;
+
+    el.innerHTML = `<div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+        <div class="stock-badge" style="border-left:3px solid ${COLORS.accent};">
+            <span class="stock-badge-label">Arabica ICE US</span>
+            <span class="stock-badge-value">${fmtInt(arab.current || 0)} <span style="font-size:0.6rem;font-weight:400;color:var(--text-muted);">bags</span></span>
+            <span class="stock-badge-sub"><span class="${arabUp ? 'up' : 'down'}">${arabUp ? '+' : ''}${arabPct}%</span> 1M</span>
+        </div>
+        <div class="stock-badge" style="border-left:3px solid ${COLORS.blue};">
+            <span class="stock-badge-label">Robusta ICE EU</span>
+            <span class="stock-badge-value">${fmtInt(rob.current || 0)} <span style="font-size:0.6rem;font-weight:400;color:var(--text-muted);">lots</span></span>
+            <span class="stock-badge-sub"><span class="${robUp ? 'up' : 'down'}">${robUp ? '+' : ''}${robPct}%</span> 1M</span>
+        </div>
+    </div>`;
+}
+
+function renderAssetStats() {
+    const el = document.getElementById('asset-stats-body');
+    const titleEl = document.getElementById('asset-stats-title');
+    if (!el) return;
+
+    if (selectedAssets.length === 1) {
+        const asset = getAssetData(selectedAssets[0]);
+        if (!asset || !asset.history || asset.history.length < 10) {
+            el.innerHTML = '<div style="color:var(--text-muted);font-size:0.7rem;">Not enough data</div>';
+            return;
+        }
+        titleEl.textContent = asset.label;
+        const h = asset.history;
+        const current = h[h.length - 1].value;
+        const returns = [];
+        for (let i = 1; i < h.length; i++) {
+            if (h[i - 1].value > 0) returns.push(Math.log(h[i].value / h[i - 1].value));
+        }
+        const mean = returns.reduce((a, b) => a + b, 0) / returns.length;
+        const variance = returns.reduce((a, b) => a + (b - mean) ** 2, 0) / (returns.length - 1);
+        const dailyVol = Math.sqrt(variance);
+        const annualVol = dailyVol * Math.sqrt(252) * 100;
+
+        const perf1w = computePerf(h, 7);
+        const perf1m = computePerf(h, 30);
+        const perf3m = computePerf(h, 90);
+        const perfYtd = computeYTDPerf(h);
+        const perf1y = computePerf(h, 365);
+
+        const vals = h.map(d => d.value);
+        const high52 = Math.max(...vals.slice(-260));
+        const low52 = Math.min(...vals.slice(-260));
+
+        el.innerHTML = `
+            <div class="stat-row"><span class="stat-label">Price</span><span class="stat-value">${fmtNum(current)}</span></div>
+            <div class="stat-row"><span class="stat-label">1W</span><span class="stat-value ${pctClass(perf1w)}">${fmtPct(perf1w)}</span></div>
+            <div class="stat-row"><span class="stat-label">1M</span><span class="stat-value ${pctClass(perf1m)}">${fmtPct(perf1m)}</span></div>
+            <div class="stat-row"><span class="stat-label">3M</span><span class="stat-value ${pctClass(perf3m)}">${fmtPct(perf3m)}</span></div>
+            <div class="stat-row"><span class="stat-label">YTD</span><span class="stat-value ${pctClass(perfYtd)}">${fmtPct(perfYtd)}</span></div>
+            <div class="stat-row"><span class="stat-label">1Y</span><span class="stat-value ${pctClass(perf1y)}">${fmtPct(perf1y)}</span></div>
+            <div class="stat-row"><span class="stat-label">Vol (ann.)</span><span class="stat-value">${fmtNum(annualVol, 1)}%</span></div>
+            <div class="stat-row"><span class="stat-label">52w High</span><span class="stat-value">${fmtNum(high52)}</span></div>
+            <div class="stat-row"><span class="stat-label">52w Low</span><span class="stat-value">${fmtNum(low52)}</span></div>
+        `;
+    } else {
+        titleEl.textContent = 'CORRELATION';
+        const horizons = [{ label: '1M', days: 30 }, { label: '3M', days: 90 }, { label: '6M', days: 180 }, { label: '1Y', days: 365 }];
+        let html = '';
+        for (const hz of horizons) {
+            html += `<div style="font-size:0.6rem;color:var(--text-muted);margin-top:0.4rem;letter-spacing:1px;">${hz.label}</div>`;
+            html += _buildCorrTable(hz.days);
+        }
+        el.innerHTML = html;
+    }
+}
+
+function _buildCorrTable(days) {
+    const assets = selectedAssets.map(k => ({ key: k, data: getAssetData(k) })).filter(a => a.data?.history?.length > 10);
+    if (assets.length < 2) return '<div style="color:var(--text-muted);font-size:0.65rem;">Select 2+ assets</div>';
+
+    const cutoff = new Date(Date.now() - days * 86400000).toISOString().slice(0, 10);
+
+    const dateMap = {};
+    for (const a of assets) {
+        const filtered = a.data.history.filter(d => d.date >= cutoff);
+        for (const pt of filtered) {
+            if (!dateMap[pt.date]) dateMap[pt.date] = {};
+            dateMap[pt.date][a.key] = pt.value;
+        }
+    }
+
+    const dates = Object.keys(dateMap).sort();
+    const returnSeries = {};
+    for (const a of assets) returnSeries[a.key] = [];
+
+    for (let i = 1; i < dates.length; i++) {
+        const prev = dateMap[dates[i - 1]];
+        const curr = dateMap[dates[i]];
+        let allPresent = true;
+        for (const a of assets) {
+            if (prev[a.key] == null || curr[a.key] == null || prev[a.key] <= 0) { allPresent = false; break; }
+        }
+        if (!allPresent) continue;
+        for (const a of assets) {
+            returnSeries[a.key].push(Math.log(curr[a.key] / prev[a.key]));
+        }
+    }
+
+    let html = '<table class="corr-table"><tr><th></th>';
+    for (const a of assets) html += `<th>${a.key.toUpperCase()}</th>`;
+    html += '</tr>';
+    for (const a of assets) {
+        html += `<tr><th>${a.key.toUpperCase()}</th>`;
+        for (const b of assets) {
+            if (a.key === b.key) {
+                html += '<td style="color:var(--text-muted);">1.00</td>';
+            } else {
+                const corr = _pearson(returnSeries[a.key], returnSeries[b.key]);
+                const color = corr > 0.5 ? COLORS.green : corr < -0.5 ? COLORS.red : COLORS.orange;
+                html += `<td style="color:${color}">${corr != null ? corr.toFixed(2) : '—'}</td>`;
+            }
+        }
+        html += '</tr>';
+    }
+    html += '</table>';
+    return html;
+}
+
+function _pearson(a, b) {
+    const n = Math.min(a.length, b.length);
+    if (n < 5) return null;
+    const xa = a.slice(-n), xb = b.slice(-n);
+    const ma = xa.reduce((s, v) => s + v, 0) / n;
+    const mb = xb.reduce((s, v) => s + v, 0) / n;
+    let num = 0, da = 0, db = 0;
+    for (let i = 0; i < n; i++) {
+        const ai = xa[i] - ma, bi = xb[i] - mb;
+        num += ai * bi; da += ai * ai; db += bi * bi;
+    }
+    const denom = Math.sqrt(da * db);
+    return denom > 0 ? num / denom : 0;
 }
 
 function setupSeasonalToggle() {
@@ -83,6 +248,8 @@ function getAssetData(key) {
     if (key === 'rc_cl') return { label: 'RC (¢/lb)', price: f.rc.front_cents_lb, unit: '¢/lb', history: f.rc.history_cents_lb, color: '#6BA3BE' };
     if (key === 'arb_rob') return { label: 'Arb-Rob Spread', price: f.arb_rob?.current, unit: '¢/lb', history: f.arb_rob?.history, color: COLORS.orange };
     if (key === 'brl') return { label: 'BRL/USD', price: DATA.brazil?.fx, unit: '', history: DATA.brazil?.fx_history, color: COLORS.yellow };
+    if (key === 'cepea') return { label: 'CEPEA/ESALQ', price: DATA.cepea?.current, unit: 'US$/bag', history: DATA.cepea?.history, color: COLORS.purple };
+    if (key === 'dxy') return { label: 'DXY', price: DATA.dxy?.current, unit: '', history: DATA.dxy?.history, color: '#aab4c2' };
     return null;
 }
 
@@ -106,12 +273,16 @@ function computeYTDPerf(history) {
 
 function renderSpotPrices() {
     const el = document.getElementById('spot-prices');
-    const assets = [
+    const coffeeAssets = [
         { key: 'kc', label: 'KC Arabica' },
         { key: 'rc', label: 'RC Robusta' },
         { key: 'rc_cl', label: 'RC (¢/lb equiv.)' },
         { key: 'arb_rob', label: 'Arb-Rob Spread' },
+        { key: 'cepea', label: 'CEPEA/ESALQ' },
+    ];
+    const fxAssets = [
         { key: 'brl', label: 'BRL/USD (PTAX)' },
+        { key: 'dxy', label: 'DXY (Dollar Index)' },
     ];
 
     let html = `<div style="display:flex;justify-content:flex-end;gap:0.5rem;margin-bottom:0.3rem;padding:0 0.2rem;">
@@ -119,14 +290,23 @@ function renderSpotPrices() {
         <span class="spot-perf-label">YTD</span>
     </div>`;
 
+    html += `<div class="spot-category">COFFEE</div>`;
+    html += _renderSpotRows(coffeeAssets);
+    html += `<div class="spot-category" style="margin-top:0.4rem;">FX</div>`;
+    html += _renderSpotRows(fxAssets);
+
+    el.innerHTML = html;
+}
+
+function _renderSpotRows(assets) {
+    let html = '';
     for (const asset of assets) {
         const data = getAssetData(asset.key);
         if (!data || data.price == null) continue;
-        const canSelect = ['kc', 'rc', 'arb_rob', 'brl'].includes(asset.key);
+        const canSelect = !['rc_cl'].includes(asset.key);
         const sel = selectedAssets.includes(asset.key) ? ' selected' : '';
         const perf1m = computePerf(data.history, 30);
         const perfYtd = computeYTDPerf(data.history);
-
         html += `
         <div class="spot-row${sel}" ${canSelect ? `onclick="toggleAsset('${asset.key}')" style="cursor:pointer"` : 'style="cursor:default;opacity:0.7"'}>
             <div class="spot-indicator" style="background:${data.color}"></div>
@@ -137,7 +317,7 @@ function renderSpotPrices() {
             <span class="spot-perf ${pctClass(perfYtd)}">${fmtPct(perfYtd)}</span>
         </div>`;
     }
-    el.innerHTML = html;
+    return html;
 }
 
 function toggleAsset(key) {
@@ -151,6 +331,7 @@ function toggleAsset(key) {
     renderSpotPrices();
     const activeHorizon = document.querySelector('.horizon-btn.active')?.dataset.horizon || '1Y';
     renderPriceEvolution(activeHorizon);
+    renderAssetStats();
 }
 
 // ── Price Evolution (multi-asset, % mode when multiple) ─────────────────
@@ -215,27 +396,23 @@ function renderPriceEvolution(horizon) {
             const mainAsset = getAssetData(selectedAssets[0]);
             const filtered = mainAsset?.history?.filter(d => d.date >= cutoff) || [];
             if (filtered.length) {
-                const startDOY = getDOY(filtered[0].date);
-                const endDOY = getDOY(filtered[filtered.length - 1].date);
+                const seasonalByDOY = {};
+                for (const s of seasonal) seasonalByDOY[s.doy] = s.value;
 
-                let seasonalFiltered;
-                if (startDOY <= endDOY) {
-                    seasonalFiltered = seasonal.filter(s => s.doy >= startDOY && s.doy <= endDOY);
-                } else {
-                    seasonalFiltered = seasonal.filter(s => s.doy >= startDOY || s.doy <= endDOY);
+                const xDates = [];
+                const yVals = [];
+                for (const pt of filtered) {
+                    const doy = getDOY(pt.date);
+                    if (seasonalByDOY[doy] != null) {
+                        xDates.push(pt.date);
+                        yVals.push(seasonalByDOY[doy]);
+                    }
                 }
 
-                if (seasonalFiltered.length) {
-                    const xDates = seasonalFiltered.map(s => {
-                        const yr = new Date().getFullYear();
-                        const d = new Date(yr, 0);
-                        d.setDate(s.doy);
-                        return d.toISOString().slice(0, 10);
-                    });
-
+                if (xDates.length) {
                     traces.push({
                         x: xDates,
-                        y: seasonalFiltered.map(s => s.value),
+                        y: yVals,
                         name: '5Y Seasonal',
                         yaxis: 'y2',
                         line: { color: COLORS.purple, width: 1.5, dash: 'dot' },
@@ -249,6 +426,7 @@ function renderPriceEvolution(horizon) {
     const layoutOverrides = {
         height: 310,
         yaxis: { title: multiMode ? '%' : (getAssetData(selectedAssets[0])?.unit || '¢/lb') },
+        legend: { orientation: 'h', y: 1.02, x: 0, xanchor: 'left', font: { size: 10 } },
     };
 
     if (seasonalToggle && seasonalToggle.checked && !multiMode) {
@@ -263,6 +441,37 @@ function renderPriceEvolution(horizon) {
     }
 
     Plotly.react('chart-price-evolution', traces, mergeLayout(layoutOverrides), PLOTLY_CONFIG);
+
+    const chartEl = document.getElementById('chart-price-evolution');
+    if (!chartEl._clickBound) {
+        chartEl._clickBound = true;
+        chartEl.on('plotly_click', function(data) {
+            if (!data.points || !data.points.length) return;
+            const pt = data.points[0];
+            const date = pt.x;
+            const value = pt.y;
+            const existing = chartEl._annotations || [];
+            const idx = existing.findIndex(a => a.x === date);
+            if (idx >= 0) {
+                existing.splice(idx, 1);
+            } else {
+                existing.push({
+                    x: date, y: value,
+                    text: `${date}<br>${fmtNum(value, 2)}`,
+                    showarrow: true, arrowhead: 2, arrowsize: 0.8,
+                    arrowcolor: COLORS.orange,
+                    font: { color: COLORS.orange, size: 9 },
+                    bgcolor: 'rgba(17,24,39,0.9)',
+                    bordercolor: COLORS.orange,
+                    borderpad: 3,
+                });
+            }
+            chartEl._annotations = existing;
+            Plotly.relayout('chart-price-evolution', { annotations: existing });
+        });
+    } else if (chartEl._annotations && chartEl._annotations.length) {
+        Plotly.relayout('chart-price-evolution', { annotations: chartEl._annotations });
+    }
 }
 
 // ── Term Structure with date comparison ──────────────────────────────────
@@ -427,10 +636,23 @@ function renderSpreadMonitor(spreadKey) {
     if (subtitleEl) subtitleEl.textContent = ` ${sp.label} — ${detail.months || ''} // ¢/lb`;
 }
 
+function _smoothSeries(values, window) {
+    const out = [];
+    for (let i = 0; i < values.length; i++) {
+        const start = Math.max(0, i - Math.floor(window / 2));
+        const end = Math.min(values.length, i + Math.floor(window / 2) + 1);
+        let sum = 0, count = 0;
+        for (let j = start; j < end; j++) { sum += values[j]; count++; }
+        out.push(sum / count);
+    }
+    return out;
+}
+
 function renderSpreadChart(history, mean, current, name) {
     const h = history;
+    const smoothed = _smoothSeries(h.map(d => d.value), 5);
     const traces = [{
-        x: h.map(d => d.date), y: h.map(d => d.value),
+        x: h.map(d => d.date), y: smoothed,
         name: name, line: { color: COLORS.accent, width: 1.5 },
     }];
 
@@ -614,6 +836,33 @@ function renderNews() {
     el.innerHTML = html;
 }
 
+function renderPolymarket() {
+    const el = document.getElementById('polymarket-list');
+    const markets = DATA.polymarket || [];
+
+    if (!markets.length) {
+        el.innerHTML = `<div class="poly-card">
+            <div class="poly-question">No active coffee or climate prediction markets found on Polymarket.</div>
+            <div class="poly-vol">Coffee & climate markets will appear here when available.</div>
+        </div>`;
+        return;
+    }
+
+    let html = '';
+    for (const m of markets.slice(0, 8)) {
+        const catBadge = m.category === 'climate'
+            ? '<span style="font-size:0.55rem;padding:1px 4px;border-radius:2px;background:rgba(231,111,81,0.15);color:var(--red);font-weight:700;margin-right:0.3rem;">CLIMATE</span>'
+            : '<span style="font-size:0.55rem;padding:1px 4px;border-radius:2px;background:rgba(0,212,170,0.15);color:var(--green);font-weight:700;margin-right:0.3rem;">COFFEE</span>';
+        html += `<div class="poly-card">
+            <div class="poly-question">${catBadge}${escHtml(m.question.slice(0, 120))}</div>
+            <div class="poly-stats">
+                <span class="poly-yes">YES ${m.yes_pct != null ? m.yes_pct.toFixed(0) + '%' : '—'}</span>
+                <span class="poly-vol">Vol: $${fmtInt(m.volume)} · ${m.end_date || '—'}</span>
+            </div>
+        </div>`;
+    }
+    el.innerHTML = html;
+}
 
 function setupHorizonButtons() {
     document.querySelectorAll('.horizon-btn').forEach(btn => {
@@ -629,91 +878,138 @@ function setupHorizonButtons() {
 // INVENTORY TAB
 // ═══════════════════════════════════════════════════════════════════════════
 
+const TONNES_TO_BAGS = 1000 / 60;
+
+let _invListenersSetup = false;
+
 function renderInventory() {
     document.getElementById('tab-inventory').dataset.rendered = '1';
     const s = DATA.stocks;
     if (!s) return;
 
-    const arab = s.arabica;
-    const rob = s.robusta;
+    const arab = s.arabica || { current: 0, one_month_ago: 0, history: [] };
+    const rob = s.robusta || { current: 0, one_month_ago: 0, history: [] };
+    const convertToBags = document.getElementById('inv-unit-toggle')?.checked || false;
+    const showPrice = document.getElementById('inv-price-overlay')?.checked || false;
+    const arabHorizon = document.querySelector('#inv-arabica-horizon .horizon-btn.active')?.dataset.horizon || '1Y';
 
-    if (!arab.current && !rob.current) {
-        document.getElementById('inv-kpis').innerHTML = `
-            <div class="alert alert-warning" style="width:100%;">
-                No stock data available. Place CSV files in <code>data/stocks_arabica_ice_certified_by_port.csv</code> and <code>data/stocks_robusta_ice_certified_by_port.csv</code> with columns: Date, Total, [port columns].
-                Then re-run <code>python scripts/fetch_market_data.py</code>.
-            </div>`;
-        return;
-    }
+    const robCurrent = convertToBags ? Math.round(rob.current * TONNES_TO_BAGS) : rob.current;
+    const robPrev = convertToBags ? Math.round(rob.one_month_ago * TONNES_TO_BAGS) : rob.one_month_ago;
+    const robUnit = convertToBags ? 'bags (60kg)' : 'lots';
 
     const arabVar = arab.one_month_ago ? arab.current - arab.one_month_ago : 0;
     const arabVarPct = arab.one_month_ago ? ((arabVar / arab.one_month_ago) * 100).toFixed(1) : '0.0';
-    const dailyCons = 100000000 / 365;
-    const daysCons = arab.current ? Math.round(arab.current / dailyCons) : 0;
+    const robVar = robCurrent - robPrev;
 
-    document.getElementById('inv-kpis').innerHTML = `
-        <div class="kpi-card">
-            <div class="kpi-label">Arabica Certified</div>
+    document.getElementById('inv-kpis-arabica').innerHTML = `
+        <div class="kpi-card" style="border-left:3px solid ${COLORS.accent}">
+            <div class="kpi-label">Arabica Certified (ICE US)</div>
             <div class="kpi-value">${fmtInt(arab.current)} bags</div>
             <div class="kpi-delta ${arabVar >= 0 ? 'up' : 'down'}">${arabVar >= 0 ? '+' : ''}${fmtInt(arabVar)} (${arabVarPct}%) 1M</div>
-        </div>
-        <div class="kpi-card">
-            <div class="kpi-label">Robusta Certified</div>
-            <div class="kpi-value">${fmtInt(rob.current)} tonnes</div>
-            <div class="kpi-delta ${(rob.current - rob.one_month_ago) >= 0 ? 'up' : 'down'}">${fmtInt(rob.current - rob.one_month_ago)} 1M</div>
-        </div>
-        <div class="kpi-card">
-            <div class="kpi-label">Days of Consumption</div>
-            <div class="kpi-value">${daysCons} days</div>
         </div>`;
 
-    const ah = arab.history;
-    Plotly.react('chart-inv-arabica', [{
-        x: ah.map(d => d.date), y: ah.map(d => d.value),
-        name: 'Arabica Stocks', line: { color: COLORS.accent, width: 2 },
-        fill: 'tozeroy', fillcolor: 'rgba(0,212,170,0.06)',
-    }], mergeLayout({ height: 350, yaxis: { title: 'bags (60kg)' } }), PLOTLY_CONFIG);
+    document.getElementById('inv-kpis-robusta').innerHTML = `
+        <div class="kpi-card" style="border-left:3px solid ${COLORS.blue}">
+            <div class="kpi-label">Robusta Certified (ICE EU)</div>
+            <div class="kpi-value">${fmtInt(robCurrent)} ${robUnit}</div>
+            <div class="kpi-delta ${robVar >= 0 ? 'up' : 'down'}">${robVar >= 0 ? '+' : ''}${fmtInt(robVar)} 1M</div>
+        </div>`;
 
-    const ports = s.ports || {};
-    const portNames = Object.keys(ports).sort((a, b) => ports[b] - ports[a]);
-    if (portNames.length) {
-        Plotly.react('chart-inv-ports', [{
-            y: portNames, x: portNames.map(p => ports[p]),
-            type: 'bar', orientation: 'h',
-            marker: { color: COLORS.accent },
-            text: portNames.map(p => fmtInt(ports[p])),
-            textposition: 'auto',
-        }], mergeLayout({ height: 350, margin: { l: 100 } }), PLOTLY_CONFIG);
-    } else {
-        document.getElementById('chart-inv-ports').innerHTML =
-            '<div style="padding:2rem;color:var(--text-muted);text-align:center;">No port breakdown available. Add port columns to your CSV.</div>';
-    }
+    _drawArabicaStocks(arab, s.ports, showPrice, arabHorizon);
+    _drawRobustaStocks(rob, s.robusta_ports, convertToBags);
 
-    renderRobustaInventoryChart(rob);
-    const unitToggle = document.getElementById('inv-unit-toggle');
-    if (unitToggle && !unitToggle.dataset.bound) {
-        unitToggle.dataset.bound = '1';
-        unitToggle.addEventListener('change', () => renderRobustaInventoryChart(rob));
-    }
-
-    if (s.simulated) {
-        document.getElementById('inv-note').textContent =
-            'Stock data is simulated. Place real CSV files in data/ and re-run the fetcher.';
+    if (!_invListenersSetup) {
+        _invListenersSetup = true;
+        document.getElementById('inv-unit-toggle')?.addEventListener('change', () => renderInventory());
+        document.getElementById('inv-price-overlay')?.addEventListener('change', () => renderInventory());
+        document.querySelectorAll('#inv-arabica-horizon .horizon-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('#inv-arabica-horizon .horizon-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                renderInventory();
+            });
+        });
     }
 }
 
-function renderRobustaInventoryChart(rob) {
-    const rh = rob?.history || [];
-    const convert = Boolean(document.getElementById('inv-unit-toggle')?.checked);
-    const factor = convert ? 1000 / 60 : 1;
-    const unit = convert ? 'bags (60kg equivalent)' : 'tonnes';
-    const values = rh.map(d => d.value * factor);
+function _drawArabicaStocks(arab, ports, showPrice, horizon) {
+    const ah = arab.history;
+    if (!ah || !ah.length) return;
+
+    let filtered = ah;
+    if (horizon && horizon !== 'MAX') {
+        const cutoff = getCutoffDate(horizon);
+        filtered = ah.filter(d => d.date >= cutoff);
+        if (!filtered.length) filtered = ah;
+    }
+
+    const traces = [{
+        x: filtered.map(d => d.date), y: filtered.map(d => d.value),
+        name: 'Arabica Stocks', line: { color: COLORS.accent, width: 2 },
+        fill: 'tozeroy', fillcolor: 'rgba(0,212,170,0.06)',
+    }];
+    const layout = { height: 380, yaxis: { title: 'bags (60kg)' } };
+
+    if (showPrice && DATA.futures?.kc?.history) {
+        const kc = DATA.futures.kc.history;
+        const cutoff = filtered[0].date;
+        const kcFiltered = kc.filter(d => d.date >= cutoff);
+        traces.push({
+            x: kcFiltered.map(d => d.date), y: kcFiltered.map(d => d.value),
+            name: 'KC Arabica (¢/lb)', yaxis: 'y2',
+            line: { color: COLORS.orange, width: 1.5, dash: 'dot' },
+        });
+        layout.yaxis2 = { title: '¢/lb', overlaying: 'y', side: 'right', showgrid: false, color: COLORS.orange };
+    }
+
+    Plotly.react('chart-inv-arabica', traces, mergeLayout(layout), PLOTLY_CONFIG);
+
+    const portData = ports || {};
+    const portNames = Object.keys(portData).sort((a, b) => portData[b] - portData[a]);
+    if (portNames.length) {
+        Plotly.react('chart-inv-ports', [{
+            y: portNames, x: portNames.map(p => portData[p]),
+            type: 'bar', orientation: 'h',
+            marker: { color: portNames.map((_, i) => i === 0 ? COLORS.accent : COLORS.blue) },
+            text: portNames.map(p => fmtInt(portData[p])),
+            textposition: 'auto', textfont: { size: 10 },
+        }], mergeLayout({ height: 380, margin: { l: 150 } }), PLOTLY_CONFIG);
+    }
+}
+
+function _drawRobustaStocks(rob, robPorts, convertToBags) {
+    const rh = rob.history;
+    if (!rh || !rh.length) return;
+
+    const factor = convertToBags ? TONNES_TO_BAGS : 1;
+    const unit = convertToBags ? 'bags (60kg)' : 'lots';
+
+    const barWidth = rh.length > 1 ? 20 * 86400000 : 30 * 86400000;
     Plotly.react('chart-inv-robusta', [{
-        x: rh.map(d => d.date), y: values,
-        name: convert ? 'Robusta Stocks (bags eq.)' : 'Robusta Stocks (tonnes)',
-        line: { color: COLORS.blue, width: 2 },
-        fill: 'tozeroy', fillcolor: 'rgba(69,123,157,0.06)',
-    }], mergeLayout({ height: 250, yaxis: { title: unit } }), PLOTLY_CONFIG);
+        x: rh.map(d => d.date),
+        y: rh.map(d => Math.round(d.value * factor)),
+        type: 'bar', name: 'Robusta Stocks',
+        marker: { color: COLORS.blue, opacity: 0.85 },
+        text: rh.map(d => fmtInt(Math.round(d.value * factor))),
+        textposition: 'outside', textfont: { size: 8, color: '#e8ecf1' },
+        width: rh.map(() => barWidth),
+    }], mergeLayout({ height: 380, yaxis: { title: unit } }), PLOTLY_CONFIG);
+
+    // Current levels by port (bar chart, sorted descending)
+    const portData = robPorts || {};
+    const portNames = Object.keys(portData).sort((a, b) => portData[b] - portData[a]);
+    if (portNames.length) {
+        Plotly.react('chart-rob-ports', [{
+            y: portNames, x: portNames.map(p => Math.round(portData[p] * factor)),
+            type: 'bar', orientation: 'h',
+            marker: { color: portNames.map((_, i) => i === 0 ? COLORS.blue : COLORS.purple) },
+            text: portNames.map(p => fmtInt(Math.round(portData[p] * factor))),
+            textposition: 'auto', textfont: { size: 10 },
+        }], mergeLayout({ height: 380, margin: { l: 60 }, xaxis: { title: unit } }), PLOTLY_CONFIG);
+    } else {
+        document.getElementById('chart-rob-ports').innerHTML =
+            '<div style="padding:2rem;color:var(--text-muted);text-align:center;">No robusta port data available.</div>';
+    }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

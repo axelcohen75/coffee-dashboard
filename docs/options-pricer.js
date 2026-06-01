@@ -282,6 +282,56 @@ function computeMonteCarloVaR(confidence, horizon, nSims) {
     return { var1d, varHorizon: var1d * Math.sqrt(horizon), distribution: pnls };
 }
 
+function _getHistoricalPnls() {
+    const returns = _getHistoricalReturns();
+    if (returns.length < 50 || OPT.legs.length === 0) return [];
+    const currentValue = portfolioValue(OPT.legs, OPT.futuresPrice, OPT.expiry);
+    return returns.map(r => {
+        const shiftedF = OPT.futuresPrice * Math.exp(r);
+        return portfolioValue(OPT.legs, shiftedF, OPT.expiry) - currentValue;
+    });
+}
+
+function computeCVaR(pnls, confidence) {
+    if (!pnls || pnls.length === 0) return 0;
+    const sorted = [...pnls].sort((a, b) => a - b);
+    const cutoffIdx = Math.floor((1 - confidence) * sorted.length);
+    if (cutoffIdx <= 0) return -sorted[0];
+    const tail = sorted.slice(0, cutoffIdx);
+    const cvar = -tail.reduce((s, v) => s + v, 0) / tail.length;
+    return cvar;
+}
+
+function computeMaxDrawdown(nSims, nSteps) {
+    if (OPT.legs.length === 0) return { maxDD: 0, avgDD: 0 };
+    nSims = nSims || 2000;
+    nSteps = nSteps || 20;
+    const dailyVol = OPT.vol / Math.sqrt(252);
+    const drawdowns = [];
+    for (let i = 0; i < nSims; i++) {
+        let peak = 0;
+        let maxDD = 0;
+        let cumPnl = 0;
+        const currentValue = portfolioValue(OPT.legs, OPT.futuresPrice, OPT.expiry);
+        for (let d = 0; d < nSteps; d++) {
+            let u1 = Math.random(), u2 = Math.random();
+            const z = Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
+            const ret = -0.5 * dailyVol * dailyVol + dailyVol * z;
+            const newF = OPT.futuresPrice * Math.exp(ret * (d + 1));
+            const newT = Math.max(0.001, OPT.expiry - (d + 1) / 365);
+            cumPnl = portfolioValue(OPT.legs, newF, newT) - currentValue;
+            if (cumPnl > peak) peak = cumPnl;
+            const dd = peak - cumPnl;
+            if (dd > maxDD) maxDD = dd;
+        }
+        drawdowns.push(maxDD);
+    }
+    drawdowns.sort((a, b) => a - b);
+    const avgDD = drawdowns.reduce((s, v) => s + v, 0) / drawdowns.length;
+    const pct95 = drawdowns[Math.floor(0.95 * drawdowns.length)];
+    return { avgDD, pct95DD: pct95, maxDD: drawdowns[drawdowns.length - 1] };
+}
+
 function computeStressTests() {
     if (OPT.legs.length === 0) return [];
     const currentValue = portfolioValue(OPT.legs, OPT.futuresPrice, OPT.expiry);
@@ -359,21 +409,17 @@ function renderOptions() {
 
             <div class="opt-panel">
                 <div class="opt-panel-title">PARAMETERS</div>
-                <label class="opt-label">Futures Price F (${unit})
+                <label class="opt-label"><span>Futures Price F (${unit})</span><span class="opt-val" id="opt-F-val">${OPT.futuresPrice.toFixed(0)}</span>
                     <input type="range" id="opt-F" min="${OPT.spotMin}" max="${OPT.spotMax}" step="1" value="${OPT.futuresPrice}" class="opt-slider">
-                    <span class="opt-val" id="opt-F-val">${OPT.futuresPrice.toFixed(0)}</span>
                 </label>
-                <label class="opt-label">Expiry T (years)
+                <label class="opt-label"><span>Expiry T (years)</span><span class="opt-val" id="opt-T-val">${OPT.expiry}</span>
                     <input type="range" id="opt-T" min="0.01" max="3" step="0.01" value="${OPT.expiry}" class="opt-slider">
-                    <span class="opt-val" id="opt-T-val">${OPT.expiry}</span>
                 </label>
-                <label class="opt-label">Volatility σ (%)
+                <label class="opt-label"><span>Volatility σ (%)</span><span class="opt-val" id="opt-vol-val">${(OPT.vol * 100).toFixed(0)}%</span>
                     <input type="range" id="opt-vol" min="5" max="150" step="1" value="${(OPT.vol * 100).toFixed(0)}" class="opt-slider">
-                    <span class="opt-val" id="opt-vol-val">${(OPT.vol * 100).toFixed(0)}%</span>
                 </label>
-                <label class="opt-label">Rate r (%)
+                <label class="opt-label"><span>Rate r (%)</span><span class="opt-val" id="opt-r-val">${(OPT.rate * 100).toFixed(1)}%</span>
                     <input type="range" id="opt-r" min="0" max="15" step="0.25" value="${(OPT.rate * 100).toFixed(1)}" class="opt-slider">
-                    <span class="opt-val" id="opt-r-val">${(OPT.rate * 100).toFixed(1)}%</span>
                 </label>
             </div>
 
@@ -415,12 +461,13 @@ function renderOptions() {
                 <div id="opt-legs-list" class="opt-legs-list">
                     <div class="opt-empty">No positions yet.</div>
                 </div>
-                <div id="opt-greeks-summary" class="opt-greeks-summary"></div>
             </div>
         </div>
 
         <!-- MAIN CHARTS -->
         <div class="opt-main">
+            <!-- PER-LEG GREEKS DETAIL TABLE -->
+            <div class="opt-portfolio-detail" id="opt-portfolio-detail"></div>
             <div class="opt-chart-grid">
                 <div class="opt-chart-card">
                     <div class="opt-chart-title">PAYOFF DIAGRAM</div>
@@ -508,15 +555,15 @@ function _initFromMarketData() {
     const f = DATA.futures;
     if (OPT.underlying === 'kc') {
         OPT.futuresPrice = f.kc.front || 265;
-        OPT.spotMin = Math.round(OPT.futuresPrice * 0.3);
-        OPT.spotMax = Math.round(OPT.futuresPrice * 1.8);
+        OPT.spotMin = Math.round(OPT.futuresPrice * 0.5);
+        OPT.spotMax = Math.round(OPT.futuresPrice * 1.5);
         OPT.realizedVol['20d'] = computeRealizedVol(f.kc.history, 20);
         OPT.realizedVol['60d'] = computeRealizedVol(f.kc.history, 60);
         OPT.realizedVol['120d'] = computeRealizedVol(f.kc.history, 120);
     } else {
         OPT.futuresPrice = f.rc.front || 3476;
-        OPT.spotMin = Math.round(OPT.futuresPrice * 0.3);
-        OPT.spotMax = Math.round(OPT.futuresPrice * 1.8);
+        OPT.spotMin = Math.round(OPT.futuresPrice * 0.5);
+        OPT.spotMax = Math.round(OPT.futuresPrice * 1.5);
         OPT.realizedVol['20d'] = computeRealizedVol(f.rc.history, 20);
         OPT.realizedVol['60d'] = computeRealizedVol(f.rc.history, 60);
         OPT.realizedVol['120d'] = computeRealizedVol(f.rc.history, 120);
@@ -606,13 +653,6 @@ function _injectOptionsCSS() {
         font-weight: 700;
         color: var(--accent);
     }
-    .opt-label {
-        display: block;
-        font-size: 0.68rem;
-        color: var(--text-secondary);
-        margin-bottom: 8px;
-        font-weight: 600;
-    }
     .opt-label-sm {
         display: block;
         font-size: 0.65rem;
@@ -629,6 +669,7 @@ function _injectOptionsCSS() {
         background: var(--border);
         border-radius: 2px;
         outline: none;
+        order: 3;
     }
     .opt-slider::-webkit-slider-thumb {
         -webkit-appearance: none;
@@ -645,12 +686,22 @@ function _injectOptionsCSS() {
         cursor: pointer;
         border: 2px solid var(--bg-card);
     }
-    .opt-val {
+    .opt-label {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        font-size: 0.68rem;
+        color: var(--text-secondary);
+        margin-bottom: 8px;
+        font-weight: 600;
+    }
+    .opt-label .opt-val {
         font-family: var(--font-mono);
         font-size: 0.68rem;
         color: var(--accent);
-        float: right;
-        margin-top: -16px;
+        font-weight: 700;
+        flex-shrink: 0;
     }
     .opt-select, .opt-select-sm {
         width: 100%;
@@ -783,8 +834,8 @@ function _injectOptionsCSS() {
         gap: 4px;
     }
     .opt-accent { color: var(--accent); }
-    .opt-chart { height: 250px; }
-    .opt-chart-tall { height: 250px; }
+    .opt-chart { height: 340px; }
+    .opt-chart-tall { height: 380px; }
     .opt-metrics-inline {
         display: flex; gap: 3px; flex-wrap: wrap;
     }
@@ -870,6 +921,58 @@ function _injectOptionsCSS() {
     .var-table .var-val { font-weight: 700; }
     .var-table .var-loss { color: var(--red); }
     .var-table .var-gain { color: var(--accent); }
+    .opt-portfolio-detail {
+        margin-bottom: 12px;
+    }
+    .opt-portfolio-detail:empty { display: none; }
+    .opt-greeks-detail-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.66rem;
+        font-family: var(--font-mono);
+    }
+    .opt-greeks-detail-table th {
+        text-align: right;
+        padding: 5px 8px;
+        color: var(--text-muted);
+        font-weight: 600;
+        border-bottom: 1px solid var(--border);
+        font-size: 0.58rem;
+        letter-spacing: 0.5px;
+    }
+    .opt-greeks-detail-table th:first-child { text-align: left; }
+    .opt-greeks-detail-table td {
+        padding: 5px 8px;
+        border-bottom: 1px solid rgba(30,42,58,0.3);
+        color: var(--text-primary);
+        text-align: right;
+    }
+    .opt-greeks-detail-table td:first-child { text-align: left; }
+    .opt-greeks-detail-table tr.total-row {
+        border-top: 2px solid var(--accent);
+        font-weight: 700;
+    }
+    .opt-greeks-detail-table tr.total-row td { color: var(--accent); }
+    .opt-risk-extra-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+        margin-top: 10px;
+    }
+    .opt-risk-metric-card {
+        background: var(--bg-primary);
+        border: 1px solid var(--border);
+        border-radius: 4px;
+        padding: 8px 10px;
+    }
+    .opt-risk-metric-label {
+        font-family: var(--font-mono);
+        font-size: 0.58rem;
+        font-weight: 700;
+        color: var(--text-muted);
+        letter-spacing: 1px;
+        text-transform: uppercase;
+    }
     .stress-table {
         width: 100%;
         border-collapse: collapse;
@@ -1005,7 +1108,7 @@ function _renderLegs() {
 
     if (OPT.legs.length === 0) {
         list.innerHTML = '<div class="opt-empty">No positions yet.</div>';
-        _renderGreeksSummary();
+        _renderPortfolioDetail();
         return;
     }
     list.innerHTML = OPT.legs.map((leg, i) => {
@@ -1020,6 +1123,70 @@ function _renderLegs() {
         </div>`;
     }).join('');
     _renderGreeksSummary();
+    _renderPortfolioDetail();
+}
+
+function _renderPortfolioDetail() {
+    const el = document.getElementById('opt-portfolio-detail');
+    if (!el) return;
+    if (OPT.legs.length === 0) { el.innerHTML = ''; return; }
+
+    const unit = OPT.underlying === 'kc' ? '¢/lb' : '$/t';
+    const totals = { price: 0, delta: 0, gamma: 0, vega: 0, theta: 0, rho: 0 };
+    const rows = OPT.legs.map(leg => {
+        const sign = _legSign(leg.position);
+        const g = black76Greeks(leg.type, OPT.futuresPrice, leg.strike, OPT.expiry, OPT.vol, OPT.rate);
+        const s = sign * leg.qty;
+        const row = {
+            label: `${sign > 0 ? '+' : '-'}${leg.qty} ${leg.type.toUpperCase()} K=${leg.strike}`,
+            price: s * g.price,
+            delta: s * g.delta,
+            gamma: s * g.gamma,
+            vega: s * g.vega * 0.01,
+            theta: s * g.theta / 365,
+            rho: s * g.rho,
+            isLong: sign > 0,
+        };
+        totals.price += row.price;
+        totals.delta += row.delta;
+        totals.gamma += row.gamma;
+        totals.vega += row.vega;
+        totals.theta += row.theta;
+        totals.rho += row.rho;
+        return row;
+    });
+
+    let html = `<div class="opt-risk-card">
+        <div class="opt-risk-card-title">PORTFOLIO LEGS</div>
+        <table class="opt-greeks-detail-table">
+        <thead><tr>
+            <th>Leg</th><th>Value</th><th>Delta</th><th>Gamma</th><th>Vega</th><th>Theta/d</th><th>Rho</th>
+        </tr></thead><tbody>`;
+
+    for (const r of rows) {
+        const clr = r.isLong ? 'var(--accent)' : 'var(--red)';
+        html += `<tr>
+            <td style="color:${clr};font-weight:600;">${r.label}</td>
+            <td>${r.price.toFixed(2)}</td>
+            <td>${r.delta.toFixed(4)}</td>
+            <td>${r.gamma.toFixed(6)}</td>
+            <td>${r.vega.toFixed(4)}</td>
+            <td>${r.theta.toFixed(4)}</td>
+            <td>${r.rho.toFixed(4)}</td>
+        </tr>`;
+    }
+
+    html += `<tr class="total-row">
+        <td>TOTAL</td>
+        <td>${totals.price.toFixed(2)}</td>
+        <td>${totals.delta.toFixed(4)}</td>
+        <td>${totals.gamma.toFixed(6)}</td>
+        <td>${totals.vega.toFixed(4)}</td>
+        <td>${totals.theta.toFixed(4)}</td>
+        <td>${totals.rho.toFixed(4)}</td>
+    </tr></tbody></table></div>`;
+
+    el.innerHTML = html;
 }
 
 function _renderGreeksSummary() {
@@ -1131,15 +1298,17 @@ function _drawPayoffChart() {
     traces.push({ x: [OPT.spotMin, OPT.spotMax], y: [0, 0], showlegend: false, line: { color: COLORS.muted, width: 0.5, dash: 'dash' } });
 
     const strikes = [...new Set(OPT.legs.map(l => l.strike))];
-    strikes.forEach(k => {
-        traces.push({ x: [k, k], y: [-1e6, 1e6], showlegend: false, line: { color: 'rgba(233,196,106,0.3)', width: 1, dash: 'dot' } });
-    });
+    const shapes = strikes.map(k => ({
+        type: 'line', x0: k, x1: k, y0: 0, y1: 1, yref: 'paper',
+        line: { color: 'rgba(233,196,106,0.3)', width: 1, dash: 'dot' },
+    }));
 
     Plotly.react(el, traces, mergeLayout({
         xaxis: { title: `Underlying (${unit})`, range: [OPT.spotMin, OPT.spotMax] },
         yaxis: { title: 'P&L', zeroline: true, zerolinecolor: COLORS.muted },
         showlegend: true, legend: { orientation: 'h', y: 1.12, font: { size: 8 } },
         margin: { l: 50, r: 10, t: 10, b: 35 },
+        shapes,
     }), PLOTLY_CONFIG);
 }
 
@@ -1296,12 +1465,17 @@ function optUpdateRisk() {
     const paramVaR = computeParametricVaR(confidence, horizon);
     const mcVaR = computeMonteCarloVaR(confidence, horizon, nSims);
 
-    _renderVaRTable(histVaR, paramVaR, mcVaR, confidence, horizon);
+    const histPnls = _getHistoricalPnls();
+    const histCVaR = computeCVaR(histPnls, confidence);
+    const mcCVaR = computeCVaR(mcVaR.distribution, confidence);
+    const maxDD = computeMaxDrawdown(2000, horizon);
+
+    _renderVaRTable(histVaR, paramVaR, mcVaR, confidence, horizon, histCVaR, mcCVaR, maxDD);
     _renderMCDistribution(mcVaR, confidence);
     _renderStressTable();
 }
 
-function _renderVaRTable(hist, param, mc, confidence, horizon) {
+function _renderVaRTable(hist, param, mc, confidence, horizon, histCVaR, mcCVaR, maxDD) {
     const el = document.getElementById('risk-var-table');
     if (!el) return;
     const confPct = (confidence * 100).toFixed(0);
@@ -1325,7 +1499,7 @@ function _renderVaRTable(hist, param, mc, confidence, horizon) {
                 <td class="var-val ${hist.varHorizon > 0 ? 'var-loss' : 'var-gain'}">${fmt(hist.varHorizon)}</td>
             </tr>
             <tr>
-                <td class="var-method">Parametric (Delta-Gamma)</td>
+                <td class="var-method">Parametric (Δ-Γ)</td>
                 <td class="var-val ${param.var1d > 0 ? 'var-loss' : 'var-gain'}">${fmt(param.var1d)}</td>
                 <td class="var-val ${param.varHorizon > 0 ? 'var-loss' : 'var-gain'}">${fmt(param.varHorizon)}</td>
             </tr>
@@ -1335,7 +1509,24 @@ function _renderVaRTable(hist, param, mc, confidence, horizon) {
                 <td class="var-val ${mc.varHorizon > 0 ? 'var-loss' : 'var-gain'}">${fmt(mc.varHorizon)}</td>
             </tr>
         </tbody>
-    </table>`;
+    </table>
+    <div class="opt-risk-extra-grid">
+        <div class="opt-risk-metric-card">
+            <div class="opt-risk-metric-label">CVaR / Expected Shortfall (${confPct}%)</div>
+            <table class="var-table" style="margin-top:6px;">
+                <tr><td class="var-method">Historical ES</td><td class="var-val var-loss">${fmt(histCVaR)}</td></tr>
+                <tr><td class="var-method">Monte Carlo ES</td><td class="var-val var-loss">${fmt(mcCVaR)}</td></tr>
+            </table>
+        </div>
+        <div class="opt-risk-metric-card">
+            <div class="opt-risk-metric-label">Maximum Drawdown (${horizon}d, MC)</div>
+            <table class="var-table" style="margin-top:6px;">
+                <tr><td class="var-method">Avg Drawdown</td><td class="var-val var-loss">${fmt(maxDD.avgDD)}</td></tr>
+                <tr><td class="var-method">95th pctl DD</td><td class="var-val var-loss">${fmt(maxDD.pct95DD)}</td></tr>
+                <tr><td class="var-method">Worst-case DD</td><td class="var-val var-loss">${fmt(maxDD.maxDD)}</td></tr>
+            </table>
+        </div>
+    </div>`;
 }
 
 function _renderMCDistribution(mc, confidence) {
