@@ -640,7 +640,7 @@ function renderInventory() {
     if (!arab.current && !rob.current) {
         document.getElementById('inv-kpis').innerHTML = `
             <div class="alert alert-warning" style="width:100%;">
-                No stock data available. Place CSV files in <code>data/ice_arabica_stocks.csv</code> and <code>data/ice_robusta_stocks.csv</code> with columns: Date, Total, [port columns].
+                No stock data available. Place CSV files in <code>data/stocks_arabica_ice_certified_by_port.csv</code> and <code>data/stocks_robusta_ice_certified_by_port.csv</code> with columns: Date, Total, [port columns].
                 Then re-run <code>python scripts/fetch_market_data.py</code>.
             </div>`;
         return;

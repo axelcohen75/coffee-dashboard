@@ -817,8 +817,8 @@ def generate_stocks_data() -> dict:
 
     result = {"simulated": False}
 
-    # Arabica stocks: data/ice_arabica_stocks.csv (columns: Date, Total, port1, port2, ...)
-    arab_path = DATA_DIR / "ice_arabica_stocks.csv"
+    # Arabica stocks: data/stocks_arabica_ice_certified_by_port.csv (columns: Date, Total, port1, port2, ...)
+    arab_path = DATA_DIR / "stocks_arabica_ice_certified_by_port.csv"
     if arab_path.exists():
         try:
             df = pd.read_csv(arab_path, parse_dates=["Date"])
@@ -856,8 +856,8 @@ def generate_stocks_data() -> dict:
         result["arabica"] = {"current": 0, "one_month_ago": 0, "history": []}
         result["ports"] = {}
 
-    # Robusta stocks: data/ice_robusta_stocks.csv (columns: Date, Total)
-    rob_path = DATA_DIR / "ice_robusta_stocks.csv"
+    # Robusta stocks: data/stocks_robusta_ice_certified_by_port.csv (columns: Date, Total)
+    rob_path = DATA_DIR / "stocks_robusta_ice_certified_by_port.csv"
     if rob_path.exists():
         try:
             df = pd.read_csv(rob_path, parse_dates=["Date"])
