@@ -970,7 +970,7 @@ function renderPhysicalDeskRead(market, change, changePct, current, unit) {
     const implication = change < 0
         ? 'tightens visible exchange availability and can support nearby spreads if demand is confirmed.'
         : 'adds visible buffer and can soften nearby tightness unless certified quality/location is constrained.';
-    document.getElementById('physical-read').innerHTML = `<div class="alert ${cls}"><b>Desk read:</b> ${market} certified stocks ${direction} by ${fmtInt(Math.abs(change))} ${unit} (${changePct.toFixed(1)}%) over the last month. This ${implication}</div>`;
+    document.getElementById('physical-read').innerHTML = `<div class="alert ${cls}"><b>Key insight:</b> ${market} certified stocks ${direction} by ${fmtInt(Math.abs(change))} ${unit} (${changePct.toFixed(1)}%) over the last month. This ${implication}</div>`;
 }
 
 function drawPhysicalHistory(market, history, showPrice, horizon, factor, unit) {
@@ -1400,7 +1400,7 @@ function renderCotDeskRead(c) {
     } else {
         msg = `${c.market}: positioning is not at an extreme. Use COT as a context layer with spreads, Brazil parity, weather and certified stocks before arguing direction.`;
     }
-    document.getElementById('pos-signal').innerHTML = `<div class="alert ${cls}"><b>Desk read:</b> ${msg}</div>`;
+    document.getElementById('pos-signal').innerHTML = `<div class="alert ${cls}"><b>Key insight:</b> ${msg}</div>`;
 }
 
 function renderCotNetChart(h, market) {
