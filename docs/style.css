@@ -127,7 +127,7 @@ body {
 
 /* ── Tab panels ──────────────────────────────────────────────────────────── */
 
-.tab-panel { display: none; padding: 0.8rem 1.2rem; }
+.tab-panel { display: none; padding: 0.65rem 1rem; }
 .tab-panel.active { display: block; }
 
 /* ── Grid layouts ────────────────────────────────────────────────────────── */
@@ -140,15 +140,16 @@ body {
 
 .overview-grid {
     display: grid;
-    grid-template-columns: 340px 360px minmax(580px, 1fr);
-    grid-template-rows: auto minmax(280px, 36vh) minmax(0, 1fr);
+    grid-template-columns: 320px 340px minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 26vh) minmax(0, 1fr);
     grid-template-areas:
-        "badges spot charts-top"
+        "badges badges ."
         "keydates spot charts-top"
         "news news charts-bottom";
-    gap: 0.6rem;
+    gap: 0.5rem;
     height: 100%;
     max-height: 100%;
+    min-width: 0;
     overflow: hidden;
     align-items: stretch;
 }
@@ -195,22 +196,53 @@ body {
 .overview-charts-top .chart-stats-row {
     flex: 1 1 auto;
     min-height: 0;
+    min-width: 0;
     height: 100%;
+    max-height: 100%;
+    align-items: stretch;
 }
 
 .overview-charts-top .chart-stats-row > .panel:first-child {
     display: flex;
     flex-direction: column;
     min-height: 0;
+    max-height: 100%;
+    overflow: hidden;
 }
 
 .overview-charts-top .chart-stats-row > .panel:first-child > .panel-body {
-    display: block;
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.overview-charts-top .panel-body > .horizon-bar {
+    flex-shrink: 0;
+    margin-bottom: 0.35rem;
 }
 
 .overview-charts-top #chart-price-evolution {
+    flex: 1 1 auto;
+    min-height: 0;
     width: 100%;
-    max-height: 280px;
+    max-width: 100%;
+    max-height: 100%;
+    overflow: hidden;
+}
+
+.overview-charts-top #chart-price-evolution.chart-container {
+    min-height: 0;
+}
+
+.overview-charts-top .asset-stats-panel {
+    max-height: 100%;
+    overflow: hidden;
+}
+
+.overview-charts-top .asset-stats-panel .panel-body {
+    overflow-y: auto;
 }
 
 .overview-panel-news {
@@ -274,7 +306,7 @@ body {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 0.5rem 0.8rem;
+    padding: 0.4rem 0.75rem;
     border-bottom: 1px solid var(--border);
 }
 
@@ -608,6 +640,10 @@ body {
     min-height: 280px;
 }
 
+.overview-charts-top .chart-container {
+    min-height: 0;
+}
+
 /* ── Dropdown / Select ──────────────────────────────────────────────── */
 
 select {
@@ -781,8 +817,14 @@ select:focus { border-color: var(--accent); }
 
 /* ── Responsive ──────────────────────────────────────────────────────── */
 
+@media (max-width: 1600px) {
+    .overview-grid { grid-template-columns: 300px 320px minmax(0, 1fr); }
+    .asset-stats-panel { width: 190px; }
+}
+
 @media (max-width: 1400px) {
-    .overview-grid { grid-template-columns: 320px 340px minmax(520px, 1fr); }
+    .overview-grid { grid-template-columns: 280px 300px minmax(0, 1fr); }
+    .asset-stats-panel { width: 170px; }
 }
 
 @media (max-width: 1100px) {

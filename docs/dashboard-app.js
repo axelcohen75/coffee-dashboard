@@ -13,24 +13,50 @@ const FUTURES_CHART_HEIGHT = 280;
 const FUTURES_CHART_LAYOUT = { height: FUTURES_CHART_HEIGHT, margin: { t: 8, r: 12, l: 45, b: 32 } };
 
 function getOverviewChartHeight() {
-    const vh = window.innerHeight;
-    const vw = window.innerWidth;
-    if (vw < 1100) return 210;
-    if (vh < 780) return 220;
-    return Math.min(280, Math.max(235, Math.round(vh * 0.26)));
+    const el = document.getElementById('chart-price-evolution');
+    if (!el) return 180;
+    const body = el.parentElement;
+    if (!body || body.clientHeight < 40) return 180;
+
+    const horizon = body.querySelector('.horizon-bar');
+    const bodyStyle = window.getComputedStyle(body);
+    const padY = parseFloat(bodyStyle.paddingTop) + parseFloat(bodyStyle.paddingBottom);
+    const horizonStyle = horizon ? window.getComputedStyle(horizon) : null;
+    const horizonH = horizon
+        ? horizon.offsetHeight + parseFloat(horizonStyle.marginBottom || 0) + parseFloat(horizonStyle.marginTop || 0)
+        : 0;
+    const available = body.clientHeight - horizonH - padY - 4;
+    const minH = window.innerWidth < 1280 ? 130 : 150;
+
+    return Math.max(minH, Math.floor(available));
+}
+
+function relayoutPriceChart() {
+    const el = document.getElementById('chart-price-evolution');
+    if (!el || !el._plotlyInit) return;
+    const h = getOverviewChartHeight();
+    const w = el.parentElement ? el.parentElement.clientWidth : el.clientWidth;
+    if (Math.abs((el._lastH || 0) - h) < 4 && Math.abs((el._lastW || 0) - w) < 4) return;
+    el._lastH = h;
+    el._lastW = w;
+    const updates = { height: h, autosize: true };
+    if (w > 0) updates.width = w;
+    Plotly.relayout('chart-price-evolution', updates);
 }
 
 function setupPriceChartResize() {
     const el = document.getElementById('chart-price-evolution');
     if (!el || el._resizeBound) return;
     el._resizeBound = true;
-    window.addEventListener('resize', () => {
-        if (!el._plotlyInit) return;
-        const h = getOverviewChartHeight();
-        if (Math.abs((el._lastH || 0) - h) < 8) return;
-        el._lastH = h;
-        Plotly.relayout('chart-price-evolution', { height: h });
-    });
+    const chartPanel = el.closest('.overview-charts-top .panel');
+    const body = el.parentElement;
+    const tick = () => requestAnimationFrame(relayoutPriceChart);
+    if (typeof ResizeObserver !== 'undefined') {
+        const obs = new ResizeObserver(tick);
+        if (chartPanel) obs.observe(chartPanel);
+        else if (body) obs.observe(body);
+    }
+    window.addEventListener('resize', tick);
 }
 
 
@@ -647,6 +673,7 @@ function renderPriceEvolution(horizon) {
     const chartEl = document.getElementById('chart-price-evolution');
     chartEl._plotlyInit = true;
     chartEl._lastH = chartHeight;
+    requestAnimationFrame(() => requestAnimationFrame(relayoutPriceChart));
     if (!chartEl._clickBound) {
         chartEl._clickBound = true;
         chartEl.on('plotly_click', function(data) {
