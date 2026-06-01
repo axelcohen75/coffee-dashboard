@@ -513,7 +513,10 @@ function renderOptions() {
                     <label class="opt-label-sm">MC Sims
                         <input type="number" id="risk-sims" value="10000" min="1000" max="100000" step="1000" class="opt-input-sm">
                     </label>
-                    <button class="opt-btn opt-btn-accent opt-risk-run" onclick="optUpdateRisk()">Run</button>
+                    <div class="opt-risk-run-wrap">
+                        <span class="opt-risk-run-spacer" aria-hidden="true">&nbsp;</span>
+                        <button type="button" class="opt-btn opt-btn-accent opt-risk-run" onclick="optUpdateRisk()">Run</button>
+                    </div>
                 </div>
 
                 <div class="opt-risk-grid">
@@ -867,13 +870,44 @@ function _injectOptionsCSS() {
     }
     .opt-risk-controls {
         display: grid;
-        grid-template-columns: minmax(160px, 1fr) minmax(160px, 1fr) minmax(120px, 170px) auto;
-        gap: 12px;
+        grid-template-columns: minmax(120px, 1fr) minmax(120px, 1fr) minmax(100px, 140px) auto;
+        gap: 10px;
         align-items: end;
         margin-bottom: 12px;
     }
-    .opt-risk-controls .opt-label-sm { margin-bottom: 0; }
-    .opt-risk-run { flex: none; min-width: 76px; height: 30px; }
+    .opt-risk-controls .opt-label-sm {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        margin-bottom: 0;
+    }
+    .opt-risk-controls .opt-select-sm,
+    .opt-risk-controls .opt-input-sm {
+        margin: 0;
+        box-sizing: border-box;
+        min-height: 28px;
+    }
+    .opt-risk-run-wrap {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        justify-content: flex-end;
+    }
+    .opt-risk-run-spacer {
+        display: block;
+        font-size: 0.65rem;
+        font-weight: 600;
+        line-height: 1.2;
+        visibility: hidden;
+        user-select: none;
+    }
+    .opt-risk-run {
+        flex: none;
+        min-width: 76px;
+        height: 28px;
+        padding: 0 12px;
+        line-height: 1;
+    }
     .opt-risk-grid {
         display: grid;
         grid-template-columns: 1fr 1fr;
