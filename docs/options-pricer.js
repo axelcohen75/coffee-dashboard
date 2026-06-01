@@ -501,20 +501,23 @@ function renderOptions() {
             <div class="opt-risk-section">
                 <h2 class="opt-risk-header">/// RISK MANAGEMENT</h2>
                 <div class="opt-risk-controls">
-                    <label class="opt-label-sm">Confidence
+                    <label class="opt-risk-field">
+                        <span class="opt-field-label">Confidence</span>
                         <select id="risk-confidence" class="opt-select-sm" onchange="optUpdateRisk()">
                             <option value="0.95">95%</option>
                             <option value="0.99" selected>99%</option>
                         </select>
                     </label>
-                    <label class="opt-label-sm">Horizon (days)
+                    <label class="opt-risk-field">
+                        <span class="opt-field-label">Horizon (days)</span>
                         <input type="number" id="risk-horizon" value="10" min="1" max="252" step="1" class="opt-input-sm" onchange="optUpdateRisk()">
                     </label>
-                    <label class="opt-label-sm">MC Sims
+                    <label class="opt-risk-field">
+                        <span class="opt-field-label">MC Sims</span>
                         <input type="number" id="risk-sims" value="10000" min="1000" max="100000" step="1000" class="opt-input-sm">
                     </label>
-                    <div class="opt-risk-run-wrap">
-                        <span class="opt-risk-run-spacer" aria-hidden="true">&nbsp;</span>
+                    <div class="opt-risk-field opt-risk-run-wrap">
+                        <span class="opt-field-label opt-field-label-spacer" aria-hidden="true">&nbsp;</span>
                         <button type="button" class="opt-btn opt-btn-accent opt-risk-run" onclick="optUpdateRisk()">Run</button>
                     </div>
                 </div>
@@ -869,44 +872,44 @@ function _injectOptionsCSS() {
         margin-bottom: 10px;
     }
     .opt-risk-controls {
-        display: grid;
-        grid-template-columns: minmax(120px, 1fr) minmax(120px, 1fr) minmax(100px, 140px) auto;
-        gap: 10px;
-        align-items: end;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: flex-end;
+        gap: 10px 12px;
         margin-bottom: 12px;
     }
-    .opt-risk-controls .opt-label-sm {
+    .opt-risk-field {
         display: flex;
         flex-direction: column;
         gap: 4px;
-        margin-bottom: 0;
+        flex: 0 0 auto;
+        margin: 0;
+    }
+    .opt-field-label {
+        font-size: 0.65rem;
+        color: var(--text-secondary);
+        font-weight: 600;
+        line-height: 1.2;
+        white-space: nowrap;
+    }
+    .opt-field-label-spacer {
+        visibility: hidden;
+        user-select: none;
     }
     .opt-risk-controls .opt-select-sm,
     .opt-risk-controls .opt-input-sm {
+        width: 112px;
         margin: 0;
         box-sizing: border-box;
         min-height: 28px;
     }
-    .opt-risk-run-wrap {
-        display: flex;
-        flex-direction: column;
-        gap: 4px;
-        justify-content: flex-end;
-    }
-    .opt-risk-run-spacer {
-        display: block;
-        font-size: 0.65rem;
-        font-weight: 600;
-        line-height: 1.2;
-        visibility: hidden;
-        user-select: none;
-    }
+    .opt-risk-run-wrap { justify-content: flex-end; }
     .opt-risk-run {
-        flex: none;
-        min-width: 76px;
+        width: 76px;
         height: 28px;
         padding: 0 12px;
         line-height: 1;
+        flex: none;
     }
     .opt-risk-grid {
         display: grid;

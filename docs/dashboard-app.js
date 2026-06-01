@@ -99,7 +99,6 @@ function setupTabs() {
             const target = tab.dataset.tab;
             document.getElementById('tab-' + target).classList.add('active');
             if (target === 'inventory' && !document.getElementById('tab-inventory').dataset.rendered) renderInventory();
-            if (target === 'brazil' && !document.getElementById('tab-brazil').dataset.rendered) renderBrazil();
             if (target === 'weather' && !document.getElementById('tab-weather').dataset.rendered) renderWeather();
             if (target === 'positioning' && !document.getElementById('tab-positioning').dataset.rendered) renderPositioning();
             if (target === 'options' && !document.getElementById('tab-options').dataset.rendered) {
@@ -1312,93 +1311,14 @@ function renderPhysicalWatchlist(market) {
     ] : [
         ['Tenderable quality', 'Certified bags are exchange-grade; location and age matter for deliverability.'],
         ['Spread confirmation', 'Drawdowns matter more when KC calendar spreads tighten at the same time.'],
-        ['Brazil flow', 'Compare certified changes with Brazil export parity for replacement incentives.'],
+        ['Brazil flow', 'Compare certified changes with BRL/USD and CEPEA for replacement incentives.'],
     ];
     document.getElementById('physical-watchlist').innerHTML = rows.map(([k, v]) => `<div style="margin-bottom:0.55rem;"><b style="color:var(--text-primary);">${k}</b><br><span style="color:var(--text-muted);font-size:0.75rem;">${v}</span></div>`).join('');
 }
 
 
 // ═══════════════════════════════════════════════════════════════════════════
-// BRAZIL PARITY TAB
-// ═══════════════════════════════════════════════════════════════════════════
-
-function renderBrazil() {
-    document.getElementById('tab-brazil').dataset.rendered = '1';
-    const b = DATA.brazil;
-    const kc = DATA.futures.kc.front;
-    if (!b || !kc) return;
-
-    const fx = b.fx;
-    const diff = b.differential;
-    const parity = b.parity;
-
-    document.getElementById('brazil-kpis').innerHTML = `
-        <div class="kpi-card">
-            <div class="kpi-label">KC Front</div>
-            <div class="kpi-value">${fmtNum(kc)} ¢/lb</div>
-        </div>
-        <div class="kpi-card">
-            <div class="kpi-label">BRL/USD (PTAX)</div>
-            <div class="kpi-value">${fx ? fmtNum(fx, 4) : '—'}</div>
-        </div>
-        <div class="kpi-card">
-            <div class="kpi-label">Differential</div>
-            <div class="kpi-value">${diff != null ? (diff >= 0 ? '+' : '') + fmtNum(diff, 1) + ' ¢/lb' : '—'}</div>
-        </div>
-        <div class="kpi-card">
-            <div class="kpi-label">Export Parity</div>
-            <div class="kpi-value">${parity ? 'R$ ' + fmtNum(parity, 0) + '/saca' : '—'}</div>
-        </div>`;
-
-    if (b.parity_history && b.parity_history.length) {
-        const ph = b.parity_history;
-        Plotly.react('chart-brazil-parity', [{
-            x: ph.map(d => d.date), y: ph.map(d => d.value),
-            name: 'Export Parity', line: { color: COLORS.blue, width: 2 },
-            fill: 'tozeroy', fillcolor: 'rgba(69,123,157,0.06)',
-        }], mergeLayout({
-            height: 380,
-            yaxis: { title: 'R$ / saca (60kg)' },
-            title: { text: 'FOB Santos Export Parity (R$/saca)', font: { size: 12, color: COLORS.muted } },
-        }), PLOTLY_CONFIG);
-    }
-
-    if (b.fx_history && b.fx_history.length) {
-        const fh = b.fx_history;
-        Plotly.react('chart-brazil-fx', [{
-            x: fh.map(d => d.date), y: fh.map(d => d.value),
-            name: 'BRL/USD', line: { color: COLORS.orange, width: 2 },
-        }], mergeLayout({
-            height: 300,
-            yaxis: { title: 'BRL per USD' },
-            title: { text: 'BRL/USD PTAX', font: { size: 12, color: COLORS.muted } },
-        }), PLOTLY_CONFIG);
-    }
-
-    if (b.sensitivity && b.sensitivity.length) {
-        const sens = b.sensitivity;
-        const el = document.getElementById('brazil-sensitivity');
-        const fxHeaders = sens[0].values.map(v => `FX ${fmtNum(v.fx, 2)}`);
-
-        let html = '<table class="sens-table"><thead><tr><th>KC \\ FX</th>';
-        for (const h of fxHeaders) html += `<th>${h}</th>`;
-        html += '</tr></thead><tbody>';
-
-        for (const row of sens) {
-            html += `<tr><td><b>KC ${fmtNum(row.kc, 1)}</b></td>`;
-            for (const v of row.values) {
-                const cls = parity && v.parity < parity * 1.02 ? 'sens-positive' : 'sens-negative';
-                html += `<td class="${cls}">${fmtInt(v.parity)}</td>`;
-            }
-            html += '</tr>';
-        }
-        html += '</tbody></table>';
-        el.innerHTML = html;
-    }
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// WEATHER TAB
+// WEATHER TAB// WEATHER TAB
 // ═══════════════════════════════════════════════════════════════════════════
 
 function renderWeather() {
