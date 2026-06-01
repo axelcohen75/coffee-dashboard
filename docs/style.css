@@ -135,13 +135,15 @@ body {
 .overview-grid {
     display: grid;
     grid-template-columns: 260px 380px minmax(580px, 1fr);
-    grid-template-rows: auto minmax(360px, auto) minmax(0, 1fr);
+    grid-template-rows: auto minmax(300px, 34vh) minmax(0, 1fr);
     grid-template-areas:
         "badges badges ."
         "keydates spot charts-top"
         "news news charts-bottom";
     gap: 0.6rem;
-    min-height: calc(100vh - 50px);
+    height: calc(100vh - 50px);
+    max-height: calc(100vh - 50px);
+    overflow: hidden;
     align-items: stretch;
 }
 
@@ -242,6 +244,7 @@ body {
 .overview-charts-bottom .futures-section-body {
     flex: 1 1 auto;
     min-height: 0;
+    overflow-y: auto;
 }
 
 .panel-body-compact {

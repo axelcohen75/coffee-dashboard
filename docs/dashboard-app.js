@@ -1054,7 +1054,7 @@ function renderNews() {
     });
 
     let html = '';
-    for (const a of news.slice(0, 18)) {
+    for (const a of news.slice(0, 8)) {
         const summary = a.summary.replace(/&nbsp;/g, ' ').replace(/<[^>]+>/g, '');
         html += `
         <div class="news-item">
