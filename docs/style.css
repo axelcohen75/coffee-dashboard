@@ -205,20 +205,12 @@ body {
 }
 
 .overview-charts-top .chart-stats-row > .panel:first-child > .panel-body {
-    flex: 1 1 auto;
-    display: flex;
-    flex-direction: column;
-    min-height: 0;
-}
-
-.overview-charts-top .panel-body > .horizon-bar {
-    flex-shrink: 0;
+    display: block;
 }
 
 .overview-charts-top #chart-price-evolution {
-    flex: 1 1 auto;
-    min-height: 180px;
     width: 100%;
+    max-height: 280px;
 }
 
 .overview-panel-news {

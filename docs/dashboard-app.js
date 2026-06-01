@@ -12,26 +12,25 @@ let selectedFuturesMarket = 'Arabica';
 const FUTURES_CHART_HEIGHT = 280;
 const FUTURES_CHART_LAYOUT = { height: FUTURES_CHART_HEIGHT, margin: { t: 8, r: 12, l: 45, b: 32 } };
 
-function getOverviewChartHeight(chartId = 'chart-price-evolution') {
-    const el = document.getElementById(chartId);
-    if (!el) return 280;
-    const body = el.closest('.panel-body');
-    const h = (body || el).clientHeight;
-    return h > 120 ? Math.max(180, h - 4) : 280;
+function getOverviewChartHeight() {
+    const vh = window.innerHeight;
+    const vw = window.innerWidth;
+    if (vw < 1100) return 210;
+    if (vh < 780) return 220;
+    return Math.min(280, Math.max(235, Math.round(vh * 0.26)));
 }
 
 function setupPriceChartResize() {
     const el = document.getElementById('chart-price-evolution');
-    if (!el || el._resizeObs) return;
-    el._resizeObs = true;
-    const target = el.closest('.panel-body') || el;
-    const obs = new ResizeObserver(() => {
+    if (!el || el._resizeBound) return;
+    el._resizeBound = true;
+    window.addEventListener('resize', () => {
+        if (!el._plotlyInit) return;
         const h = getOverviewChartHeight();
-        if (!el._plotlyInit || Math.abs((el._lastH || 0) - h) < 10) return;
+        if (Math.abs((el._lastH || 0) - h) < 8) return;
         el._lastH = h;
         Plotly.relayout('chart-price-evolution', { height: h });
     });
-    obs.observe(target);
 }
 
 
@@ -627,7 +626,6 @@ function renderPriceEvolution(horizon) {
     const yUnit = multiMode ? '%' : (getAssetData(selectedAssets[0])?.unit || '¢/lb');
     const layoutOverrides = {
         height: chartHeight,
-        autosize: true,
         margin: { l: 52, r: 18, t: 10, b: 34 },
         yaxis: { title: { text: yUnit, standoff: 6 }, automargin: true },
         legend: { orientation: 'h', y: 1.02, x: 0, xanchor: 'left', font: { size: 10 } },
