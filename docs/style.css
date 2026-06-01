@@ -222,8 +222,8 @@ body {
 .spot-name {
     font-size: 0.75rem;
     color: var(--text-primary);
-    flex: 1;
-    min-width: 0;
+    flex: 1 1 auto;
+    min-width: 82px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -235,13 +235,13 @@ body {
     font-family: var(--font-mono);
     color: var(--accent);
     text-align: right;
-    min-width: 55px;
+    min-width: 62px;
 }
 
 .spot-unit {
     font-size: 0.6rem;
     color: var(--text-muted);
-    min-width: 30px;
+    min-width: 34px;
     text-align: right;
 }
 
@@ -722,7 +722,7 @@ select:focus { border-color: var(--accent); }
     font-size: 0.6rem;
     font-family: var(--font-mono);
     font-weight: 600;
-    min-width: 38px;
+    min-width: 42px;
     text-align: right;
 }
 
@@ -911,3 +911,17 @@ select:focus { border-color: var(--accent); }
 }
 
 @keyframes spin { to { transform: rotate(360deg); } }
+
+.spot-category-spreads {
+    margin-top: 0.55rem;
+    letter-spacing: 1.8px;
+}
+.spot-row.spread {
+    padding-top: 0.5rem;
+    padding-bottom: 0.5rem;
+}
+.spot-row.spread .spot-name {
+    min-width: 130px;
+    font-size: 0.74rem;
+}
+.spot-row.spread .spot-price { min-width: 66px; }

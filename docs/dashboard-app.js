@@ -277,8 +277,10 @@ function renderSpotPrices() {
         { key: 'kc', label: 'KC Arabica' },
         { key: 'rc', label: 'RC Robusta' },
         { key: 'rc_cl', label: 'RC (¢/lb equiv.)' },
-        { key: 'arb_rob', label: 'Arb-Rob Spread' },
         { key: 'cepea', label: 'CEPEA/ESALQ' },
+    ];
+    const spreadAssets = [
+        { key: 'arb_rob', label: 'Arabica-Robusta Spread' },
     ];
     const fxAssets = [
         { key: 'brl', label: 'BRL/USD (PTAX)' },
@@ -292,13 +294,15 @@ function renderSpotPrices() {
 
     html += `<div class="spot-category">COFFEE</div>`;
     html += _renderSpotRows(coffeeAssets);
+    html += `<div class="spot-category spot-category-spreads">SPREADS</div>`;
+    html += _renderSpotRows(spreadAssets, 'spread');
     html += `<div class="spot-category" style="margin-top:0.4rem;">FX</div>`;
     html += _renderSpotRows(fxAssets);
 
     el.innerHTML = html;
 }
 
-function _renderSpotRows(assets) {
+function _renderSpotRows(assets, rowClass = '') {
     let html = '';
     for (const asset of assets) {
         const data = getAssetData(asset.key);
@@ -308,7 +312,7 @@ function _renderSpotRows(assets) {
         const perf1m = computePerf(data.history, 30);
         const perfYtd = computeYTDPerf(data.history);
         html += `
-        <div class="spot-row${sel}" ${canSelect ? `onclick="toggleAsset('${asset.key}')" style="cursor:pointer"` : 'style="cursor:default;opacity:0.7"'}>
+        <div class="spot-row${rowClass ? ` ${rowClass}` : ``}${sel}" ${canSelect ? `onclick="toggleAsset('${asset.key}')" style="cursor:pointer"` : 'style="cursor:default;opacity:0.7"'}>
             <div class="spot-indicator" style="background:${data.color}"></div>
             <span class="spot-name">${asset.label}</span>
             <span class="spot-price">${fmtNum(data.price, data.unit === '$/t' ? 0 : 2)}</span>
