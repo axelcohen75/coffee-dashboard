@@ -22,6 +22,7 @@ import yfinance as yf
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
+from scripts.news_helpers import enrich_news_articles
 from utils.conversions import LBS_PER_SACA, USD_T_TO_CENTS_LB
 
 OUT = ROOT / "docs" / "data" / "market-data.json"
@@ -873,7 +874,10 @@ def fetch_news() -> list[dict]:
     articles.sort(key=lambda x: x["_ts"], reverse=True)
     for a in articles:
         del a["_ts"]
-    return articles[:20]
+
+    articles = articles[:20]
+    enrich_news_articles(articles, limit=8)
+    return articles
 
 
 def fetch_polymarket() -> list[dict]:

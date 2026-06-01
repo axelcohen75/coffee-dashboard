@@ -1084,6 +1084,21 @@ function getNextICODates(from, count) {
 
 // ── News (sorted by recency) ─────────────────────────────────────────────
 
+
+function newsLeadText(article) {
+    const title = (article.title || '').trim();
+    let summary = (article.summary || '').replace(/&nbsp;/g, ' ').replace(/<[^>]+>/g, '').trim();
+    if (!summary) return '';
+
+    const norm = (s) => s.toLowerCase().replace(/[^\w\sàâäéèêëïîôùûüçœæ-]/g, '').replace(/\s+/g, ' ').trim();
+    const titleNorm = norm(title.split(' - ')[0].split('…')[0]);
+    const summaryNorm = norm(summary);
+    if (!summaryNorm) return '';
+    if (titleNorm && (summaryNorm.includes(titleNorm) || titleNorm.includes(summaryNorm))) return '';
+    if (titleNorm.slice(0, 70) === summaryNorm.slice(0, 70)) return '';
+    return summary.length > 220 ? summary.slice(0, 220) + '…' : summary;
+}
+
 function renderNews() {
     const el = document.getElementById('news-list');
     let news = DATA.news || [];
@@ -1107,7 +1122,7 @@ function renderNews() {
 
     let html = '';
     for (const a of news.slice(0, 8)) {
-        const summary = a.summary.replace(/&nbsp;/g, ' ').replace(/<[^>]+>/g, '');
+        const summary = newsLeadText(a);
         html += `
         <div class="news-item">
             <div class="news-top">
@@ -1115,7 +1130,7 @@ function renderNews() {
                 <span class="news-age">${a.age || ''}</span>
             </div>
             <div class="news-title">${escHtml(a.title.slice(0, 100))}</div>
-            <div class="news-summary">${escHtml(summary.slice(0, 220))}${summary.length > 220 ? "…" : ""}</div>
+            ${summary ? `<div class="news-summary">${escHtml(summary)}</div>` : ''}
             <a class="news-link" href="${a.url}" target="_blank" rel="noopener">READ ARTICLE →</a>
         </div>`;
     }
