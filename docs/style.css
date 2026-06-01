@@ -134,7 +134,7 @@ body {
 
 .overview-grid {
     display: grid;
-    grid-template-columns: 380px 320px 1fr;
+    grid-template-columns: 340px 460px minmax(520px, 1fr);
     grid-template-rows: auto;
     gap: 0.8rem;
     min-height: calc(100vh - 50px);
@@ -925,3 +925,37 @@ select:focus { border-color: var(--accent); }
     font-size: 0.74rem;
 }
 .spot-row.spread .spot-price { min-width: 66px; }
+
+
+/* ── Spot prices width/layout override ─────────────────────────────────── */
+.spot-row {
+    display: grid;
+    grid-template-columns: 3px minmax(150px, 1fr) minmax(64px, auto) 42px 46px 46px;
+    gap: 0.35rem;
+    align-items: center;
+}
+.spot-row.selected {
+    border-left: none;
+    box-shadow: inset 3px 0 0 var(--accent);
+}
+.spot-name {
+    min-width: 0;
+    overflow: visible;
+    text-overflow: clip;
+}
+.spot-price, .spot-unit, .spot-perf {
+    justify-self: end;
+}
+.spot-row.spread {
+    grid-template-columns: 3px minmax(205px, 1fr) minmax(68px, auto) 42px 46px 46px;
+}
+.spot-row.spread .spot-name {
+    min-width: 0;
+    overflow: visible;
+    text-overflow: clip;
+}
+@media (max-width: 1400px) {
+    .overview-grid { grid-template-columns: 320px 430px minmax(500px, 1fr); }
+    .spot-row { grid-template-columns: 3px minmax(135px, 1fr) minmax(62px, auto) 38px 42px 42px; }
+    .spot-row.spread { grid-template-columns: 3px minmax(190px, 1fr) minmax(66px, auto) 38px 42px 42px; }
+}
