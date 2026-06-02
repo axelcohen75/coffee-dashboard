@@ -1,11 +1,10 @@
-"""Curate coffee news for display — trading sources first, cap per publisher."""
+"""Curate coffee news for display - recency first."""
 
 from __future__ import annotations
 
 from email.utils import parsedate_to_datetime
 
 PRIORITY_SOURCES = ("stonex", "barchart", "ecom", "sucafina")
-MAX_PER_SOURCE = 2
 DISPLAY_LIMIT = 12
 COFFEE_KEYWORDS = ("coffee", "arabica", "robusta", "café", "cafe", "kc ", "rc ")
 
@@ -38,7 +37,7 @@ def _matches_priority(article: dict, keyword: str) -> bool:
 
 
 def curate_news_articles(articles: list[dict], limit: int = DISPLAY_LIMIT) -> list[dict]:
-    """Pick a diverse set: always include trading sources, cap duplicates per publisher."""
+    """Pick the most recent coffee-related articles."""
     if not articles:
         return []
 
@@ -53,27 +52,12 @@ def curate_news_articles(articles: list[dict], limit: int = DISPLAY_LIMIT) -> li
 
     selected: list[dict] = []
     seen_titles: set[str] = set()
-    source_counts: dict[str, int] = {}
-
-    def can_add(article: dict) -> bool:
-        src = extract_source(article.get("title", "")) or "unknown"
-        return source_counts.get(src, 0) < MAX_PER_SOURCE
-
     def add(article: dict) -> None:
         title = article.get("title", "")
         if title in seen_titles:
             return
-        src = extract_source(title) or "unknown"
         selected.append(article)
         seen_titles.add(title)
-        source_counts[src] = source_counts.get(src, 0) + 1
-
-    for keyword in PRIORITY_SOURCES:
-        for article in enriched:
-            if _matches_priority(article, keyword):
-                if article["title"] not in seen_titles and can_add(article):
-                    add(article)
-                    break
 
     for article in enriched:
         if len(selected) >= limit:
@@ -83,8 +67,6 @@ def curate_news_articles(articles: list[dict], limit: int = DISPLAY_LIMIT) -> li
         if not _is_coffee_related(article) and not any(
             _matches_priority(article, kw) for kw in PRIORITY_SOURCES
         ):
-            continue
-        if not can_add(article):
             continue
         add(article)
 
