@@ -23,6 +23,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from scripts.news_curation import curate_news_articles, extract_source
+from scripts.news_sentiment import classify_sentiment
 from scripts.news_helpers import enrich_news_articles
 from utils.conversions import LBS_PER_SACA, USD_T_TO_CENTS_LB
 
@@ -809,28 +810,6 @@ def fetch_news() -> list[dict]:
         "https://news.google.com/rss/search?q=cafe+arabica+robusta+prix+when:7d&hl=fr-FR&gl=FR&ceid=FR:fr",
     ]
 
-    bull_words = [
-        "surge", "soar", "rally", "jump", "rise", "gain", "higher", "bull",
-        "shortage", "drought", "frost", "freeze", "supply concern", "tight supply",
-        "record high", "supply deficit", "crop damage", "low stocks",
-        "backwardation", "climbing", "increase", "strong demand", "price spike",
-        "demand recovery", "consumption growth", "stock draw", "inventory draw",
-        "hausse", "rebond", "rallye", "en hausse", "tension", "déficit",
-        "gel", "gèle", "sécheresse", "offre tendue", "reprise de la demande",
-    ]
-    bear_words = [
-        "fall", "drop", "decline", "slump", "plunge", "slide", "lower", "bear",
-        "surplus", "bumper crop", "abundant", "oversupply", "record harvest",
-        "record production", "production growth", "record growth in coffee production",
-        "higher output", "output increase", "supply growth", "supply increase",
-        "harvest pressure", "export recovery", "inventory build", "stocks build",
-        "weak demand", "contango", "price drop", "selloff", "sell-off",
-        "recession", "glut", "excess", "ceasefire", "deal", "easing",
-        "baisse", "chute", "recul", "en baisse", "baissé",
-        "récolte record", "production record", "croissance record de la production",
-        "pression", "pression de récolte", "reprise des exportations",
-        "offre abondante", "offre en hausse", "faible demande",
-    ]
 
     articles = []
     seen = set()
@@ -861,10 +840,7 @@ def fetch_news() -> list[dict]:
                 except Exception:
                     pass
 
-                tl = (title + " " + desc).lower()
-                bs = sum(1 for w in bull_words if w in tl)
-                brs = sum(1 for w in bear_words if w in tl)
-                sentiment = "BULL" if bs > brs else ("BEAR" if brs > bs else "NEUTRAL")
+                sentiment = classify_sentiment(title, desc)
 
                 articles.append({
                     "title": title,
@@ -891,7 +867,10 @@ def fetch_news() -> list[dict]:
     articles = articles[:20]
     curated = curate_news_articles(articles, limit=12)
     enrich_news_articles(curated, limit=12)
-    print(f"    {len(articles)} fetched → {len(curated)} curated (trading sources prioritized)")
+    # Recompute sentiment using the enriched description (better signal than title alone).
+    for a in curated:
+        a["sentiment"] = classify_sentiment(a.get("title", ""), a.get("summary", ""))
+    print(f"    {len(articles)} fetched -> {len(curated)} curated (trading sources prioritized)")
     return curated
 
 

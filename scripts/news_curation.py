@@ -1,7 +1,8 @@
-"""Curate coffee news for display - recency first."""
+"""Curate coffee news for display - recency first, no duplicates."""
 
 from __future__ import annotations
 
+import re
 from email.utils import parsedate_to_datetime
 
 PRIORITY_SOURCES = ("stonex", "barchart", "ecom", "sucafina")
@@ -13,6 +14,16 @@ def extract_source(title: str) -> str:
     if " - " in title:
         return title.rsplit(" - ", 1)[-1].strip().lower()
     return ""
+
+
+def _dedupe_key(article: dict) -> str:
+    """Normalized title used to catch duplicate stories from the same outlet."""
+    title = article.get("title", "")
+    title = title.rsplit(" - ", 1)[0]  # drop trailing source
+    title = title.lower()
+    title = re.sub(r"[^\w\sàâäéèêëïîôùûüçœæ]", " ", title)
+    title = re.sub(r"\s+", " ", title).strip()
+    return title
 
 
 def _article_ts(article: dict) -> float:
@@ -37,7 +48,7 @@ def _matches_priority(article: dict, keyword: str) -> bool:
 
 
 def curate_news_articles(articles: list[dict], limit: int = DISPLAY_LIMIT) -> list[dict]:
-    """Pick the most recent coffee-related articles."""
+    """Pick the most recent coffee-related articles, removing duplicates."""
     if not articles:
         return []
 
@@ -51,24 +62,27 @@ def curate_news_articles(articles: list[dict], limit: int = DISPLAY_LIMIT) -> li
     enriched.sort(key=lambda x: x["_ts"], reverse=True)
 
     selected: list[dict] = []
-    seen_titles: set[str] = set()
-    def add(article: dict) -> None:
-        title = article.get("title", "")
-        if title in seen_titles:
-            return
-        selected.append(article)
-        seen_titles.add(title)
+    seen_keys: set[str] = set()
+    seen_urls: set[str] = set()
 
     for article in enriched:
         if len(selected) >= limit:
             break
-        if article["title"] in seen_titles:
-            continue
         if not _is_coffee_related(article) and not any(
             _matches_priority(article, kw) for kw in PRIORITY_SOURCES
         ):
             continue
-        add(article)
+        key = _dedupe_key(article)
+        url = article.get("url", "")
+        if key and key in seen_keys:
+            continue
+        if url and url in seen_urls:
+            continue
+        selected.append(article)
+        if key:
+            seen_keys.add(key)
+        if url:
+            seen_urls.add(url)
 
     selected.sort(key=lambda x: x["_ts"], reverse=True)
 

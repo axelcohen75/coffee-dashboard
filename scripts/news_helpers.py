@@ -90,32 +90,50 @@ def decode_google_news_url(source_url: str) -> str | None:
     return None
 
 
-def extract_article_lead(url: str) -> str:
-    if "news.google.com" in url or "google.com" in urlparse(url).netloc:
-        return ""
+def _fetch_html(url: str) -> str:
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
         "Accept-Language": "en-US,en;q=0.9,fr;q=0.8",
     }
-    try:
-        resp = requests.get(url, timeout=12, headers=headers, allow_redirects=True)
-        if resp.status_code != 200:
-            return ""
-        html = resp.text
-        for pattern in (
-            r'<meta[^>]+property=["\']og:description["\'][^>]+content=["\']([^"\']+)',
-            r'<meta[^>]+content=["\']([^"\']+)["\'][^>]+property=["\']og:description["\']',
-            r'<meta[^>]+name=["\']description["\'][^>]+content=["\']([^"\']+)',
-        ):
-            match = re.search(pattern, html, re.I)
-            if match:
-                return unescape(match.group(1)).strip()
-        for paragraph in re.findall(r"<p[^>]*>([^<]{40,600})", html, re.I):
-            lead = unescape(re.sub(r"\s+", " ", paragraph)).strip()
-            if len(lead) >= 40:
-                return lead
-    except Exception:
+    for attempt in range(2):
+        try:
+            resp = requests.get(url, timeout=12, headers=headers, allow_redirects=True)
+            if resp.status_code == 200:
+                return resp.text
+        except Exception:
+            pass
+        time.sleep(0.4)
+    return ""
+
+
+def extract_article_lead(url: str, title: str = "") -> str:
+    if "news.google.com" in url or "google.com" in urlparse(url).netloc:
         return ""
+    html = _fetch_html(url)
+    if not html:
+        return ""
+
+    # Candidate descriptions, in order of preference.
+    meta_patterns = (
+        r'<meta[^>]+property=["\']og:description["\'][^>]+content=["\']([^"\']+)',
+        r'<meta[^>]+content=["\']([^"\']+)["\'][^>]+property=["\']og:description["\']',
+        r'<meta[^>]+name=["\']twitter:description["\'][^>]+content=["\']([^"\']+)',
+        r'<meta[^>]+name=["\']description["\'][^>]+content=["\']([^"\']+)',
+        r'"description"\s*:\s*"([^"]{40,400})"',
+    )
+    for pattern in meta_patterns:
+        match = re.search(pattern, html, re.I)
+        if match:
+            meta = unescape(match.group(1)).strip()
+            if len(meta) >= 40 and not (title and news_duplicate_of_title(title, meta)):
+                return meta
+
+    # Fall back to the first substantive body paragraph.
+    for paragraph in re.findall(r"<p[^>]*>(.*?)</p>", html, re.I | re.S):
+        lead = unescape(re.sub(r"<[^>]+>", "", paragraph))
+        lead = re.sub(r"\s+", " ", lead).strip()
+        if len(lead) >= 60 and not (title and news_duplicate_of_title(title, lead)):
+            return lead
     return ""
 
 
@@ -130,7 +148,7 @@ def enrich_news_summary(article: dict) -> str:
         return ""
 
     publisher_url = decode_google_news_url(url) or url
-    lead = extract_article_lead(publisher_url)
+    lead = extract_article_lead(publisher_url, title)
     if not lead or news_duplicate_of_title(title, lead):
         return ""
     return first_sentence(lead)
