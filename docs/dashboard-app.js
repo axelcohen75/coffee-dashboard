@@ -1082,14 +1082,102 @@ function getNextICODates(from, count) {
     return dates;
 }
 
-// ── News (recency first) ───────────────────────────────────────────────────
+// ── News (supply/demand sentiment, recency-first, de-duplicated) ────────────
 const NEWS_PRIORITY_SOURCES = ['stonex', 'barchart', 'ecom', 'sucafina'];
 const NEWS_DISPLAY_LIMIT = 12;
 const NEWS_COFFEE_KEYWORDS = ['coffee', 'arabica', 'robusta', 'café', 'cafe'];
 
+// Sentiment framed in supply & demand terms (not only price words).
+// [phrase, weight] — multi-word supply/demand cues outweigh generic price words.
+const NEWS_BULLISH = [
+    ['surge',1],['surges',1],['surged',1],['soar',1],['soars',1],['soared',1],
+    ['rally',1],['rallies',1],['rallied',1],['jump',1],['jumps',1],['jumped',1],
+    ['rise',1],['rises',1],['rose',1],['rising',1],['gain',1],['gains',1],
+    ['higher',1],['climb',1],['climbs',1],['climbing',1],['spike',1],['spikes',1],
+    ['strengthen',1],['strengthens',1],['firmer',1],['record high',1],['price spike',1],
+    ['shortage',2],['shortages',2],['deficit',2],['supply deficit',2],
+    ['tight supply',2],['tight supplies',2],['supply concern',2],['supply concerns',2],
+    ['supply disruption',2],['drought',2],['frost',2],['frosts',2],['freeze',2],
+    ['crop damage',2],['crop loss',2],['crop losses',2],['lower output',2],
+    ['output decline',2],['production cut',2],['production cuts',2],['production decline',2],
+    ['reduced harvest',2],['smaller crop',2],['poor harvest',2],['low stocks',2],
+    ['declining stocks',2],['inventory draw',2],['export ban',2],['lower exports',2],['backwardation',2],
+    ['strong demand',2],['robust demand',2],['demand growth',2],['demand recovery',2],
+    ['rising demand',2],['higher demand',2],['consumption growth',2],['record demand',2],
+    ['hausse',1],['en hausse',1],['rebond',1],['rebondit',1],['rallye',1],
+    ['flambée',1],['flambee',1],['grimpe',1],['progresse',1],
+    ['pénurie',2],['penurie',2],['déficit',2],['sécheresse',2],['secheresse',2],
+    ['gel',2],['gelée',2],['offre tendue',2],['baisse de production',2],
+    ['récolte réduite',2],['recolte reduite',2],['forte demande',2],
+    ['reprise de la demande',2],['stocks bas',2]
+];
+const NEWS_BEARISH = [
+    ['fall',1],['falls',1],['fell',1],['falling',1],['drop',1],['drops',1],
+    ['dropped',1],['decline',1],['declines',1],['declined',1],['slump',1],
+    ['slumps',1],['plunge',1],['plunges',1],['plunged',1],['slide',1],['slides',1],
+    ['lower',1],['tumble',1],['tumbles',1],['sink',1],['sinks',1],['retreat',1],
+    ['weaken',1],['weakens',1],['weaker',1],['selloff',1],['sell-off',1],
+    ['hammer',1],['hammers',1],['hammered',1],['slips',1],['slipped',1],
+    ['surplus',2],['glut',2],['oversupply',2],['over-supply',2],['bumper crop',2],
+    ['bumper harvest',2],['record harvest',2],['record crop',2],['record production',2],
+    ['record output',2],['production growth',2],['higher output',2],['output increase',2],
+    ['output rises',2],['supply growth',2],['supply increase',2],['rising production',2],
+    ['increased production',2],['larger crop',2],['bigger crop',2],['abundant',2],
+    ['ample supply',2],['ample supplies',2],['good harvest',2],['strong harvest',2],
+    ['favorable weather',2],['favourable weather',2],['beneficial rains',2],
+    ['harvest pressure',2],['harvest resumes',2],['harvest resumption',2],
+    ['resumption',2],['export recovery',2],['rising exports',2],['higher exports',2],
+    ['export surge',2],['inventory build',2],['stocks build',2],['rising stocks',2],
+    ['record growth in coffee production',3],['record growth in production',3],
+    ['record coffee harvest',2],['record coffee crop',2],['record coffee production',2],
+    ['undercut',1],['undercuts',1],['real weakness',1],['weaker real',1],['weak real',1],
+    ['weak demand',2],['weaker demand',2],['demand decline',2],['falling demand',2],
+    ['lower demand',2],['soft demand',2],['sluggish demand',2],['contango',2],
+    ['baisse',1],['en baisse',1],['chute',1],['chutent',1],['recul',1],['recule',1],
+    ['plonge',1],['glissement',1],
+    ['offre abondante',2],['récolte record',2],['recolte record',2],
+    ['production record',2],['croissance record',2],['hausse de production',2],
+    ['reprise des exportations',2],['pression de récolte',2],['faible demande',2],
+    ['demande faible',2],['stocks en hausse',2],['beau temps',2],['conditions favorables',2]
+];
+
+function escRegExp(s) {
+    return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function newsPhraseScore(text, phrases) {
+    let score = 0;
+    for (const [phrase, weight] of phrases) {
+        const re = new RegExp('(?<![\\p{L}\\p{N}])' + escRegExp(phrase) + '(?![\\p{L}\\p{N}])', 'iu');
+        if (re.test(text)) score += weight;
+    }
+    return score;
+}
+
+function classifyNewsSentiment(article) {
+    const text = `${article.title || ''} ${article.summary || ''}`;
+    const bull = newsPhraseScore(text, NEWS_BULLISH);
+    const bear = newsPhraseScore(text, NEWS_BEARISH);
+    if (bull > bear) return 'BULL';
+    if (bear > bull) return 'BEAR';
+    return 'NEUTRAL';
+}
+
+const SENTIMENT_LABEL = { BULL: 'BULLISH', BEAR: 'BEARISH', NEUTRAL: 'NEUTRAL' };
+
 function newsExtractSource(title) {
     const idx = title.lastIndexOf(' - ');
     return idx >= 0 ? title.slice(idx + 3).trim().toLowerCase() : '';
+}
+
+function newsNorm(s) {
+    return (s || '').toLowerCase()
+        .replace(/[^\w\sàâäéèêëïîôùûüçœæ-]/g, ' ')
+        .replace(/\s+/g, ' ').trim();
+}
+
+function newsDedupeKey(title) {
+    return newsNorm((title || '').split(' - ')[0]);
 }
 
 function newsIsCoffeeRelated(article) {
@@ -1113,82 +1201,48 @@ function curateNewsForDisplay(articles, limit = NEWS_DISPLAY_LIMIT) {
     }).sort((a, b) => b._ts - a._ts);
 
     const selected = [];
-    const seenTitles = new Set();
-    function add(article) {
-        if (seenTitles.has(article.title)) return;
-        selected.push(article);
-        seenTitles.add(article.title);
-    }
+    const seenKeys = new Set();
+    const seenUrls = new Set();
 
     for (const article of enriched) {
         if (selected.length >= limit) break;
-        if (seenTitles.has(article.title)) continue;
         const isPriority = NEWS_PRIORITY_SOURCES.some(kw => newsMatchesPriority(article, kw));
         if (!newsIsCoffeeRelated(article) && !isPriority) continue;
-        add(article);
+        const key = newsDedupeKey(article.title || '');
+        const url = article.url || '';
+        if (key && seenKeys.has(key)) continue;
+        if (url && seenUrls.has(url)) continue;
+        selected.push(article);
+        if (key) seenKeys.add(key);
+        if (url) seenUrls.add(url);
     }
 
     return selected.sort((a, b) => b._ts - a._ts).slice(0, limit);
 }
-
-
-
 
 function newsLeadText(article) {
     const title = (article.title || '').trim();
     let summary = (article.summary || '').replace(/&nbsp;/g, ' ').replace(/<[^>]+>/g, '').trim();
     if (!summary) return '';
 
-    const norm = (s) => s.toLowerCase().replace(/[^\w\sàâäéèêëïîôùûüçœæ-]/g, '').replace(/\s+/g, ' ').trim();
-    const titleNorm = norm(title.split(' - ')[0].split('…')[0]);
-    const summaryNorm = norm(summary);
+    const titleNorm = newsNorm(title.split(' - ')[0].split('…')[0]);
+    let summaryNorm = newsNorm(summary);
     if (!summaryNorm) return '';
 
-    // Remove title prefix repeated by many RSS feeds.
+    // Strip a repeated headline prefix that some feeds prepend to the body.
     if (titleNorm && summaryNorm.startsWith(titleNorm)) {
-        const trimmed = summary.slice(title.length).replace(/^\s*[:\-–—|,.]+\s*/, '').trim();
-        if (trimmed) summary = trimmed;
+        const trimmed = summary.slice(title.length).replace(/^[\s:|.,–—-]+/, '').trim();
+        if (trimmed) { summary = trimmed; summaryNorm = newsNorm(summary); }
     }
 
-    // Hide when summary is effectively the same text as title.
-    const summaryWords = new Set(summaryNorm.split(' ').filter(Boolean));
-    const titleWords = new Set(titleNorm.split(' ').filter(Boolean));
-    const overlap = [...summaryWords].filter(w => titleWords.has(w)).length;
-    const denom = Math.max(1, Math.min(summaryWords.size, titleWords.size));
+    // Hide when the blurb is essentially the headline again (high word overlap).
+    const sWords = new Set(summaryNorm.split(' ').filter(Boolean));
+    const tWords = new Set(titleNorm.split(' ').filter(Boolean));
+    const overlap = [...sWords].filter(w => tWords.has(w)).length;
+    const denom = Math.max(1, Math.min(sWords.size, tWords.size));
     if (overlap / denom > 0.85) return '';
 
-    return summary.length > 220 ? summary.slice(0, 220) + '…' : summary;
-}
-
-function classifyNewsSentiment(article) {
-    const text = `${article.title || ''} ${article.summary || ''}`.toLowerCase();
-
-    const bullWords = [
-        'surge', 'soar', 'rally', 'jump', 'rise', 'gain', 'higher', 'bull',
-        'shortage', 'drought', 'frost', 'freeze', 'tight supply', 'deficit',
-        'record high', 'backwardation', 'strong demand', 'demand recovery',
-        'consumption growth', 'price spike', 'stock draw', 'inventory draw',
-        'hausse', 'rebond', 'rallye', 'en hausse', 'tension', 'déficit',
-        'gel', 'gèle', 'sécheresse', 'offre tendue', 'reprise de la demande'
-    ];
-    const bearWords = [
-        'fall', 'drop', 'decline', 'slump', 'plunge', 'slide', 'lower', 'bear',
-        'surplus', 'bumper crop', 'abundant', 'oversupply', 'record harvest',
-        'record production', 'production growth', 'record growth in coffee production',
-        'higher output', 'output increase', 'supply growth', 'supply increase',
-        'harvest pressure', 'export recovery', 'inventory build', 'stocks build',
-        'weak demand', 'contango', 'selloff', 'easing', 'glut',
-        'baisse', 'chute', 'recul', 'en baisse', 'baissé',
-        'récolte record', 'production record', 'croissance record de la production',
-        'pression de récolte', 'reprise des exportations', 'offre abondante',
-        'offre en hausse', 'faible demande'
-    ];
-
-    const bullScore = bullWords.reduce((acc, w) => acc + (text.includes(w) ? 1 : 0), 0);
-    const bearScore = bearWords.reduce((acc, w) => acc + (text.includes(w) ? 1 : 0), 0);
-    if (bullScore > bearScore) return 'BULL';
-    if (bearScore > bullScore) return 'BEAR';
-    return article.sentiment || 'NEUTRAL';
+    return summary.length > 200 ? summary.slice(0, 200).replace(/\s+\S*$/, '') + '…' : summary;
 }
 
 function renderNews() {
@@ -1212,10 +1266,11 @@ function renderNews() {
     for (const a of news) {
         const summary = newsLeadText(a);
         const sentiment = classifyNewsSentiment(a);
+        const label = SENTIMENT_LABEL[sentiment] || sentiment;
         html += `
         <div class="news-item">
             <div class="news-top">
-                <span class="sentiment-tag sentiment-${sentiment}">${sentiment}</span>
+                <span class="sentiment-tag sentiment-${sentiment}">${label}</span>
                 <span class="news-age">${a.age || ''}</span>
             </div>
             <div class="news-title">${escHtml(a.title.slice(0, 100))}</div>
@@ -1225,6 +1280,7 @@ function renderNews() {
     }
     el.innerHTML = html;
 }
+
 
 function renderPolymarket() {
     const el = document.getElementById('polymarket-list');
