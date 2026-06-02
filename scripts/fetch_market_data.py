@@ -22,22 +22,16 @@ import yfinance as yf
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from scripts.news_curation import curate_news_articles, extract_source
-from scripts.news_helpers import enrich_news_articles
-from utils.conversions import LBS_PER_SACA, USD_T_TO_CENTS_LB
-
 OUT = ROOT / "docs" / "data" / "market-data.json"
 
 # ── Constants ────────────────────────────────────────────────────────────────
+USD_T_TO_CENTS_LB = 100 / 2204.62
+LBS_PER_SACA = 132.277
 KC_MONTHS = ["H", "K", "N", "U", "Z"]
 RC_MONTHS = ["F", "H", "K", "N", "U", "X"]
 MONTH_TO_INT = {
     "F": 1, "G": 2, "H": 3, "J": 4, "K": 5, "M": 6,
     "N": 7, "Q": 8, "U": 9, "V": 10, "X": 11, "Z": 12,
-}
-MONTH_LABELS = {
-    1: "Jan", 2: "Feb", 3: "Mar", 4: "Apr", 5: "May", 6: "Jun",
-    7: "Jul", 8: "Aug", 9: "Sep", 10: "Oct", 11: "Nov", 12: "Dec",
 }
 
 COFFEE_ZONES = {
@@ -116,7 +110,7 @@ def _euro_float(val) -> float:
 
 
 def _load_rc_csv() -> pd.DataFrame:
-    for fname in ("robusta_futures_price_history.csv",):
+    for fname in ("rc_history.csv", "rc_front.csv"):
         path = DATA_DIR / fname
         if not path.exists():
             continue
@@ -137,121 +131,6 @@ def _load_rc_csv() -> pd.DataFrame:
             continue
     return pd.DataFrame()
 
-
-
-def _load_two_column_history(filename: str, value_col: str | None = None) -> dict:
-    """Load a Date/value CSV from data/ into dashboard JSON shape."""
-    path = DATA_DIR / filename
-    if not path.exists():
-        return {"current": None, "history": [], "source": filename}
-    try:
-        df = pd.read_csv(path)
-        if "Date" not in df.columns:
-            return {"current": None, "history": [], "source": filename}
-        if value_col is None:
-            candidates = [c for c in df.columns if c != "Date"]
-            value_col = candidates[0] if candidates else None
-        if value_col is None or value_col not in df.columns:
-            return {"current": None, "history": [], "source": filename}
-        df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
-        df[value_col] = pd.to_numeric(df[value_col], errors="coerce")
-        df = df.dropna(subset=["Date", value_col]).sort_values("Date")
-        history = [{"date": d.strftime("%Y-%m-%d"), "value": round(float(v), 4)} for d, v in zip(df["Date"], df[value_col])]
-        return {
-            "current": history[-1]["value"] if history else None,
-            "history": history,
-            "source": filename,
-        }
-    except Exception as exc:
-        print(f"    Failed to load {filename}: {exc}")
-        return {"current": None, "history": [], "source": filename}
-
-
-def load_cepea_data() -> dict:
-    print("  Loading CEPEA Arabica CSV…")
-    return _load_two_column_history("cepea_arabica_usd_bag.csv", "Price US$")
-
-
-def fetch_dxy() -> dict:
-    print("  Loading DXY history…")
-    return _load_two_column_history("dxy_index_history.csv", "Price")
-
-
-def _tradingview_quotes(symbols: list[str]) -> dict[str, dict]:
-    """Fetch delayed public TradingView quotes via the scanner endpoint."""
-    if not symbols:
-        return {}
-    columns = [
-        "name", "description", "close", "open", "high", "low",
-        "change", "volume", "currency", "type", "subtype", "exchange",
-    ]
-    payload = {
-        "symbols": {"tickers": symbols, "query": {"types": []}},
-        "columns": columns,
-    }
-    try:
-        resp = requests.post(
-            "https://scanner.tradingview.com/futures/scan",
-            json=payload,
-            timeout=15,
-            headers={"User-Agent": "Mozilla/5.0", "Content-Type": "application/json"},
-        )
-        if resp.status_code != 200:
-            return {}
-        result = {}
-        for row in resp.json().get("data", []):
-            values = row.get("d", [])
-            if len(values) != len(columns):
-                continue
-            result[row.get("s")] = dict(zip(columns, values))
-        return result
-    except Exception as exc:
-        print(f"    TradingView quote fetch failed: {exc}")
-        return {}
-
-
-def _tradingview_robusta_symbols(n: int = 8) -> list[dict]:
-    """Build upcoming ICEEUR Robusta contract symbols for TradingView."""
-    now = datetime.utcnow()
-    contracts = []
-    for year in [now.year, now.year + 1, now.year + 2]:
-        for code in RC_MONTHS:
-            month = MONTH_TO_INT[code]
-            if year == now.year and month < now.month:
-                continue
-            contracts.append({
-                "symbol": f"ICEEUR:RC{code}{year}",
-                "contract": f"{code}{str(year)[-2:]}",
-                "delivery_month": f"{MONTH_LABELS[month]} {year}",
-                "month": month,
-                "year": year,
-            })
-            if len(contracts) >= n:
-                return contracts
-    return contracts
-
-
-def _fetch_tradingview_robusta_curve(n: int = 8) -> list[dict]:
-    contracts = _tradingview_robusta_symbols(n)
-    quotes = _tradingview_quotes([c["symbol"] for c in contracts])
-    curve = []
-    for contract in contracts:
-        quote = quotes.get(contract["symbol"])
-        if not quote:
-            continue
-        try:
-            price = round(float(quote.get("close")), 2)
-        except (TypeError, ValueError):
-            continue
-        curve.append({
-            **contract,
-            "price": price,
-            "source": "tradingview_delayed",
-            "description": quote.get("description"),
-            "volume": quote.get("volume") or 0,
-            "change": quote.get("change"),
-        })
-    return curve
 
 # ── Seasonal ─────────────────────────────────────────────────────────────────
 
@@ -342,49 +221,26 @@ def fetch_forward_curve(n: int = 8) -> dict:
     now = datetime.now()
     curves = {"kc": [], "rc": []}
 
-    for year in [now.year, now.year + 1, now.year + 2]:
-        yr2 = str(year)[-2:]
-        for m in KC_MONTHS:
-            if len(curves["kc"]) >= n:
-                break
-            ticker = f"KC{m}{yr2}.NYB"
-            df = _yf(ticker, "5d")
-            if not df.empty:
-                curves["kc"].append({
-                    "contract": f"{m}{yr2}",
-                    "price": round(float(df["Close"].iloc[-1]), 2),
-                    "month": MONTH_TO_INT[m],
-                    "year": year,
-                    "source": "yfinance",
-                })
-        if len(curves["kc"]) >= n:
-            break
-
-    tv_rc = _fetch_tradingview_robusta_curve(n)
-    if tv_rc:
-        curves["rc"] = tv_rc
-        print(f"    Robusta curve: {len(tv_rc)} contracts from TradingView delayed quotes")
-    else:
-        print("    TradingView Robusta curve unavailable; trying yfinance tickers")
+    for base, months, key in [("KC", KC_MONTHS, "kc"), ("RC", RC_MONTHS, "rc")]:
         for year in [now.year, now.year + 1, now.year + 2]:
             yr2 = str(year)[-2:]
-            for m in RC_MONTHS:
-                if len(curves["rc"]) >= n:
+            for m in months:
+                if len(curves[key]) >= n:
                     break
-                ticker = f"RC{m}{yr2}.NYB"
+                ticker = f"{base}{m}{yr2}.NYB"
                 df = _yf(ticker, "5d")
                 if not df.empty:
-                    curves["rc"].append({
+                    curves[key].append({
                         "contract": f"{m}{yr2}",
                         "price": round(float(df["Close"].iloc[-1]), 2),
                         "month": MONTH_TO_INT[m],
                         "year": year,
-                        "source": "yfinance",
                     })
-            if len(curves["rc"]) >= n:
+            if len(curves[key]) >= n:
                 break
 
     return curves
+
 
 def fetch_spreads() -> dict:
     print("  Fetching calendar spreads…")
@@ -458,7 +314,6 @@ def fetch_brazil() -> dict:
     kc_hist = _yf("KC=F", "5y")
     kc_s = kc_hist["Close"] if not kc_hist.empty else pd.Series(dtype=float)
 
-    # Placeholder FOB Santos vs KC (¢/lb): not sourced from market data.
     differential = -5.0
     parity = None
     parity_history = []
@@ -642,155 +497,134 @@ def fetch_weather() -> dict:
     return zones
 
 
-def _load_local_cot_market(market: str, filename: str) -> dict:
-    """Load a curated local COT CSV and return dashboard-ready metrics."""
-    path = DATA_DIR / filename
-    if not path.exists():
-        return {"available": False}
+def fetch_cot() -> dict:
+    print("  Fetching CFTC COT data…")
+    import io
+    import zipfile
 
-    df = pd.read_csv(path)
-    rename = {
-        "Report_Date_as_YYYY-MM-DD": "date",
-        "Report_Date_as_MM_DD_YYYY": "date",
-        "As_of_Date_Form_MM/DD/YYYY": "date",
-        "Open_Interest_All": "oi",
-        "Prod_Merc_Positions_Long_All": "prod_long",
-        "Prod_Merc_Positions_Short_All": "prod_short",
-        "Swap_Positions_Long_All": "swap_long",
-        "Swap__Positions_Short_All": "swap_short",
-        "Swap_Positions_Short_All": "swap_short",
-        "M_Money_Positions_Long_All": "mm_long",
-        "M_Money_Positions_Short_All": "mm_short",
-        "Other_Rept_Positions_Long_All": "other_long",
-        "Other_Rept_Positions_Short_All": "other_short",
-        "Net_Managed_Money": "mm_net",
-        "Net_Commercials": "prod_net",
-        "Net_Swap": "swap_net",
-        "Net_Other": "other_net",
-    }
-    df = df.rename(columns={col: rename.get(col, col) for col in df.columns})
-    if "date" not in df:
-        return {"available": False}
+    COFFEE_CODE = "083731"
+    frames = []
 
-    df["date"] = pd.to_datetime(df["date"], errors="coerce")
-    df = df.dropna(subset=["date"]).copy()
-
-    cols = [
-        "oi", "prod_long", "prod_short", "swap_long", "swap_short",
-        "mm_long", "mm_short", "other_long", "other_short",
+    urls = [
+        "https://www.cftc.gov/dea/newcot/f_disagg.txt",
     ]
-    for col in cols:
-        df[col] = pd.to_numeric(df.get(col, 0), errors="coerce").fillna(0)
+    for year in range(2025, 2019, -1):
+        urls.append(f"https://www.cftc.gov/files/dea/history/fut_disagg_txt_{year}.zip")
 
-    net_pairs = {
-        "mm_net": ("mm_long", "mm_short"),
-        "prod_net": ("prod_long", "prod_short"),
-        "swap_net": ("swap_long", "swap_short"),
-        "other_net": ("other_long", "other_short"),
-    }
-    for net_col, (long_col, short_col) in net_pairs.items():
-        if net_col not in df:
-            df[net_col] = df[long_col] - df[short_col]
-        else:
-            df[net_col] = pd.to_numeric(df[net_col], errors="coerce").fillna(df[long_col] - df[short_col])
+    for url in urls:
+        try:
+            r = requests.get(url, timeout=30)
+            if r.status_code != 200:
+                continue
 
-    df = df.set_index("date").sort_index()
-    df = df[~df.index.duplicated(keep="last")]
-    if df.empty:
+            if url.endswith(".zip"):
+                with zipfile.ZipFile(io.BytesIO(r.content)) as z:
+                    for name in z.namelist():
+                        if name.endswith(".txt"):
+                            content = z.read(name).decode("utf-8", errors="replace")
+                            df = pd.read_csv(io.StringIO(content), low_memory=False)
+                            break
+                    else:
+                        continue
+            else:
+                df = pd.read_csv(io.StringIO(r.text), low_memory=False)
+
+            cftc_col = None
+            for col in df.columns:
+                if "CFTC_Commodity_Code" in col:
+                    cftc_col = col
+                    break
+            if cftc_col is None:
+                for col in df.columns:
+                    if "commodity" in col.lower() and "code" in col.lower():
+                        cftc_col = col
+                        break
+            if cftc_col is None:
+                continue
+
+            df[cftc_col] = df[cftc_col].astype(str).str.strip()
+            coffee = df[df[cftc_col] == COFFEE_CODE].copy()
+            if coffee.empty:
+                continue
+
+            date_col = None
+            for col in coffee.columns:
+                if "report_date" in col.lower() or "as_of_date" in col.lower():
+                    date_col = col
+                    break
+            if date_col is None:
+                continue
+
+            def _find(keywords):
+                for c in coffee.columns:
+                    cl = c.lower().replace(" ", "_")
+                    if all(k in cl for k in keywords):
+                        return c
+                return None
+
+            mm_l = _find(["m_money", "long", "all"]) or _find(["money_manager", "long"])
+            mm_s = _find(["m_money", "short", "all"]) or _find(["money_manager", "short"])
+            pr_l = _find(["prod_merc", "long", "all"]) or _find(["producer", "long"])
+            pr_s = _find(["prod_merc", "short", "all"]) or _find(["producer", "short"])
+            oi_c = _find(["open_interest", "all"]) or _find(["open_interest"])
+
+            if not all([mm_l, mm_s]):
+                continue
+
+            result = pd.DataFrame({
+                "date": pd.to_datetime(coffee[date_col]),
+                "mm_long": pd.to_numeric(coffee[mm_l], errors="coerce"),
+                "mm_short": pd.to_numeric(coffee[mm_s], errors="coerce"),
+                "prod_long": pd.to_numeric(coffee.get(pr_l, 0), errors="coerce") if pr_l else 0,
+                "prod_short": pd.to_numeric(coffee.get(pr_s, 0), errors="coerce") if pr_s else 0,
+                "oi": pd.to_numeric(coffee.get(oi_c, 0), errors="coerce") if oi_c else 0,
+            })
+            result["mm_net"] = result["mm_long"] - result["mm_short"]
+            result["prod_net"] = result["prod_long"] - result["prod_short"]
+            result = result.set_index("date").sort_index()
+            frames.append(result)
+            print(f"    Loaded {len(result)} rows from {url.split('/')[-1]}")
+        except Exception as e:
+            print(f"    Failed {url.split('/')[-1]}: {e}")
+            continue
+
+    if not frames:
         return {"available": False}
 
-    mm_net = df["mm_net"]
-    zscore = ((mm_net - mm_net.rolling(104, min_periods=20).mean()) / mm_net.rolling(104, min_periods=20).std())
+    combined = pd.concat(frames).sort_index()
+    combined = combined[~combined.index.duplicated(keep="last")]
 
-    def _pct_rank(values) -> float:
-        s = pd.Series(values).dropna()
-        if s.empty:
-            return float("nan")
-        return float((s <= s.iloc[-1]).mean() * 100)
+    # Z-score
+    mm_net = combined["mm_net"]
+    mean = mm_net.rolling(104, min_periods=20).mean()
+    std = mm_net.rolling(104, min_periods=20).std()
+    zscore = ((mm_net - mean) / std)
 
-    percentile = mm_net.rolling(104, min_periods=20).apply(_pct_rank, raw=False)
-    latest = df.iloc[-1]
-    previous = df.iloc[-2] if len(df) > 1 else latest
-    latest_z = float(zscore.dropna().iloc[-1]) if not zscore.dropna().empty else 0.0
-    latest_pct = float(percentile.dropna().iloc[-1]) if not percentile.dropna().empty else 50.0
-
-    history = []
-    for d, row in df.iterrows():
-        oi = float(row["oi"]) if row["oi"] else 0.0
-        item = {"date": d.strftime("%Y-%m-%d")}
-        for col in [
-            "mm_long", "mm_short", "mm_net", "prod_long", "prod_short", "prod_net",
-            "swap_long", "swap_short", "swap_net", "other_long", "other_short", "other_net", "oi",
-        ]:
-            item[col] = int(row[col]) if pd.notna(row[col]) else 0
-        for col in ["mm", "prod", "swap", "other"]:
-            item[f"{col}_pct_oi"] = round(float(row[f"{col}_net"]) / oi * 100, 2) if oi else None
-        history.append(item)
-
-    recent_flow = []
-    for d, row in df.tail(8).iterrows():
-        prev = df.shift(1).loc[d]
-        recent_flow.append({
-            "date": d.strftime("%Y-%m-%d"),
-            "mm_net": int(row["mm_net"]),
-            "mm_wow": int(row["mm_net"] - prev["mm_net"]) if pd.notna(prev["mm_net"]) else 0,
-            "prod_net": int(row["prod_net"]),
-            "prod_wow": int(row["prod_net"] - prev["prod_net"]) if pd.notna(prev["prod_net"]) else 0,
-            "swap_net": int(row["swap_net"]),
-            "other_net": int(row["other_net"]),
-            "oi": int(row["oi"]),
-        })
+    current_z = round(float(zscore.iloc[-1]), 2) if not zscore.empty else 0
 
     return {
         "available": True,
-        "market": market,
-        "source": filename,
-        "last_report": df.index[-1].strftime("%Y-%m-%d"),
-        "rows": int(len(df)),
-        "current_mm_net": int(latest["mm_net"]),
-        "current_mm_wow": int(latest["mm_net"] - previous["mm_net"]),
-        "current_prod_net": int(latest["prod_net"]),
-        "current_prod_wow": int(latest["prod_net"] - previous["prod_net"]),
-        "current_swap_net": int(latest["swap_net"]),
-        "current_other_net": int(latest["other_net"]),
-        "current_oi": int(latest["oi"]),
-        "current_oi_wow": int(latest["oi"] - previous["oi"]),
-        "current_mm_pct_oi": round(float(latest["mm_net"]) / float(latest["oi"]) * 100, 2) if latest["oi"] else None,
-        "current_zscore": round(latest_z, 2),
-        "current_percentile": round(latest_pct, 1),
-        "history": history,
+        "current_mm_net": int(combined["mm_net"].iloc[-1]),
+        "current_prod_net": int(combined["prod_net"].iloc[-1]),
+        "current_oi": int(combined["oi"].iloc[-1]),
+        "current_zscore": current_z,
+        "history": [
+            {
+                "date": d.strftime("%Y-%m-%d"),
+                "mm_long": int(row["mm_long"]) if pd.notna(row["mm_long"]) else 0,
+                "mm_short": int(row["mm_short"]) if pd.notna(row["mm_short"]) else 0,
+                "mm_net": int(row["mm_net"]) if pd.notna(row["mm_net"]) else 0,
+                "prod_net": int(row["prod_net"]) if pd.notna(row["prod_net"]) else 0,
+                "oi": int(row["oi"]) if pd.notna(row["oi"]) else 0,
+            }
+            for d, row in combined.iterrows()
+        ],
         "zscore_history": [
             {"date": d.strftime("%Y-%m-%d"), "value": round(float(v), 2)}
             for d, v in zscore.dropna().items()
         ],
-        "percentile_history": [
-            {"date": d.strftime("%Y-%m-%d"), "value": round(float(v), 1)}
-            for d, v in percentile.dropna().items()
-        ],
-        "recent_flow": recent_flow,
     }
 
-
-def fetch_cot() -> dict:
-    print("  Loading local COT data…")
-    files = {
-        "Arabica": "cot_arabica_disaggregated.csv",
-        "Robusta": "cot_robusta_disaggregated.csv",
-    }
-    markets = {}
-    for market, filename in files.items():
-        payload = _load_local_cot_market(market, filename)
-        if payload.get("available"):
-            markets[market] = payload
-            print(f"    {market}: {payload['rows']} rows from {filename}")
-        else:
-            print(f"    {market}: missing or invalid {filename}")
-
-    return {
-        "available": bool(markets),
-        "default_market": "Arabica" if "Arabica" in markets else next(iter(markets), None),
-        "markets": markets,
-    }
 
 def fetch_news() -> list[dict]:
     print("  Fetching coffee news…")
@@ -804,7 +638,6 @@ def fetch_news() -> list[dict]:
         "https://news.google.com/rss/search?q=brazil+coffee+crop+harvest+when:14d&hl=en-US&gl=US&ceid=US:en",
         "https://news.google.com/rss/search?q=ICE+coffee+commodity+when:7d&hl=en-US&gl=US&ceid=US:en",
         "https://news.google.com/rss/search?q=coffee+price+StoneX+ECOM+Sucafina+when:14d&hl=en-US&gl=US&ceid=US:en",
-        "https://news.google.com/rss/search?q=coffee+price+Barchart+when:14d&hl=en-US&gl=US&ceid=US:en",
         "https://news.google.com/rss/search?q=%22coffee+futures%22+when:3d&hl=en-US&gl=US&ceid=US:en",
         "https://news.google.com/rss/search?q=cafe+arabica+robusta+prix+when:7d&hl=fr-FR&gl=FR&ceid=FR:fr",
     ]
@@ -814,12 +647,16 @@ def fetch_news() -> list[dict]:
         "shortage", "drought", "frost", "freeze", "supply concern", "tight supply",
         "record high", "supply deficit", "crop damage", "low stocks",
         "backwardation", "climbing", "increase", "strong demand", "price spike",
+        "hausse", "rebond", "rallye", "en hausse", "tension", "déficit",
+        "gel", "gèle", "sécheresse", "offre tendue",
     ]
     bear_words = [
         "fall", "drop", "decline", "slump", "plunge", "slide", "lower", "bear",
         "surplus", "bumper crop", "abundant", "oversupply", "record harvest",
         "weak demand", "contango", "price drop", "selloff", "sell-off",
         "recession", "glut", "excess", "ceasefire", "deal", "easing",
+        "baisse", "chute", "recul", "en baisse", "baissé",
+        "récolte record", "pression", "offre abondante", "faible demande",
     ]
 
     articles = []
@@ -863,7 +700,6 @@ def fetch_news() -> list[dict]:
                     "published": pub,
                     "age": age,
                     "sentiment": sentiment,
-                    "source": extract_source(title).title() or "Unknown",
                 })
         except Exception:
             continue
@@ -877,12 +713,7 @@ def fetch_news() -> list[dict]:
     articles.sort(key=lambda x: x["_ts"], reverse=True)
     for a in articles:
         del a["_ts"]
-
-    articles = articles[:20]
-    curated = curate_news_articles(articles, limit=12)
-    enrich_news_articles(curated, limit=12)
-    print(f"    {len(articles)} fetched → {len(curated)} curated (trading sources prioritized)")
-    return curated
+    return articles[:20]
 
 
 def fetch_polymarket() -> list[dict]:
@@ -969,8 +800,8 @@ def generate_stocks_data() -> dict:
 
     result = {"simulated": False}
 
-    # Arabica stocks: data/stocks_arabica_ice_certified_by_port.csv (columns: Date, Total, port1, port2, ...)
-    arab_path = DATA_DIR / "stocks_arabica_ice_certified_by_port.csv"
+    # Arabica stocks: data/ice_arabica_stocks.csv (columns: Date, Total, port1, port2, ...)
+    arab_path = DATA_DIR / "ice_arabica_stocks.csv"
     if arab_path.exists():
         try:
             df = pd.read_csv(arab_path, parse_dates=["Date"])
@@ -1008,8 +839,8 @@ def generate_stocks_data() -> dict:
         result["arabica"] = {"current": 0, "one_month_ago": 0, "history": []}
         result["ports"] = {}
 
-    # Robusta stocks: data/stocks_robusta_ice_certified_by_port.csv (columns: Date, Total)
-    rob_path = DATA_DIR / "stocks_robusta_ice_certified_by_port.csv"
+    # Robusta stocks: data/ice_robusta_stocks.csv (columns: Date, Total)
+    rob_path = DATA_DIR / "ice_robusta_stocks.csv"
     if rob_path.exists():
         try:
             df = pd.read_csv(rob_path, parse_dates=["Date"])
@@ -1020,20 +851,11 @@ def generate_stocks_data() -> dict:
             one_month_ago = int(df[total_col].iloc[one_month_idx])
             history = [{"date": row["Date"].strftime("%Y-%m-%d"), "value": int(row[total_col])}
                        for _, row in df.iterrows()]
-            port_cols = [c for c in df.columns if c not in ("Date", "Total", "date", "total")]
-            robusta_ports = {}
-            if port_cols:
-                last_row = df.iloc[-1]
-                for c in port_cols:
-                    val = last_row.get(c)
-                    if pd.notna(val) and float(val) > 0:
-                        robusta_ports[c] = int(float(val))
             result["robusta"] = {
                 "current": current,
                 "one_month_ago": one_month_ago,
                 "history": history,
             }
-            result["robusta_ports"] = robusta_ports
             print(f"    Robusta stocks: {len(history)} rows, current={current:,}")
         except Exception as e:
             print(f"    Failed to load robusta stocks CSV: {e}")
@@ -1044,6 +866,55 @@ def generate_stocks_data() -> dict:
 
     return result
 
+
+def generate_differentials() -> dict:
+    """ICO differential data — simulated."""
+    print("  Generating simulated differentials…")
+    np.random.seed(123)
+    dates = pd.bdate_range("2019-01-01", pd.Timestamp.now().normalize())
+    n = len(dates)
+
+    origins = {
+        "Colombian Milds": {"base": 15.0, "region": "Colombia, Kenya, Tanzania", "phase": 0},
+        "Other Milds": {"base": 5.0, "region": "Guatemala, Honduras, Ethiopia", "phase": 1},
+        "Brazilian Naturals": {"base": -8.0, "region": "Brazil, Ethiopia (natural)", "phase": 3},
+        "Robustas": {"base": -3.0, "region": "Vietnam, Indonesia, Uganda", "phase": 5},
+    }
+
+    result = {}
+    for name, info in origins.items():
+        seasonal = 5.0 * np.sin(np.arange(n) * 2 * np.pi / 252 + info["phase"])
+        trend = np.linspace(0, np.random.uniform(-5, 10), n)
+        noise = np.cumsum(np.random.randn(n) * 0.3)
+        diff = info["base"] + seasonal + trend + noise
+
+        current = round(float(diff[-1]), 1)
+        cutoff_2y = max(0, n - 504)
+        sub = diff[cutoff_2y:]
+        zscore = round(float((sub[-1] - sub.mean()) / sub.std()), 2) if sub.std() > 0 else 0
+
+        # Monthly heatmap
+        df_temp = pd.DataFrame({"diff": diff}, index=dates)
+        df_temp["month"] = df_temp.index.month
+        df_temp["year"] = df_temp.index.year
+        pivot = df_temp.pivot_table(values="diff", index="year", columns="month", aggfunc="mean")
+        heatmap = []
+        for yr in pivot.index:
+            for mo in pivot.columns:
+                val = pivot.loc[yr, mo]
+                if pd.notna(val):
+                    heatmap.append({"year": int(yr), "month": int(mo), "value": round(float(val), 1)})
+
+        result[name] = {
+            "region": info["region"],
+            "current": current,
+            "zscore_2y": zscore,
+            "history": [{"date": d.strftime("%Y-%m-%d"), "value": round(float(v), 2)}
+                        for d, v in list(zip(dates, diff))[::3]],
+            "heatmap": heatmap,
+        }
+
+    return {"simulated": True, "origins": result}
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1060,13 +931,12 @@ def main():
     data["forward_curve"] = fetch_forward_curve()
     data["spreads"] = fetch_spreads()
     data["brazil"] = fetch_brazil()
-    data["cepea"] = load_cepea_data()
-    data["dxy"] = fetch_dxy()
     data["weather"] = fetch_weather()
     data["cot"] = fetch_cot()
     data["news"] = fetch_news()
     data["polymarket"] = fetch_polymarket()
     data["stocks"] = generate_stocks_data()
+    data["differentials"] = generate_differentials()
 
     OUT.parent.mkdir(parents=True, exist_ok=True)
     with open(OUT, "w") as f:
