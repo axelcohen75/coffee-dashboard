@@ -1160,12 +1160,35 @@ function newsLeadText(article) {
     if (!summary) return '';
 
     const norm = (s) => s.toLowerCase().replace(/[^\w\sàâäéèêëïîôùûüçœæ-]/g, '').replace(/\s+/g, ' ').trim();
-    const titleNorm = norm(title.split(' - ')[0].split('…')[0]);
     const summaryNorm = norm(summary);
     if (!summaryNorm) return '';
-    if (titleNorm && (summaryNorm.includes(titleNorm) || titleNorm.includes(summaryNorm))) return '';
-    if (titleNorm.slice(0, 70) === summaryNorm.slice(0, 70)) return '';
+
+    // Always show a lead sentence when available.
     return summary.length > 220 ? summary.slice(0, 220) + '…' : summary;
+}
+
+function classifyNewsSentiment(article) {
+    const text = `${article.title || ''} ${article.summary || ''}`.toLowerCase();
+    const bullWords = [
+        'surge', 'soar', 'rally', 'jump', 'rise', 'gain', 'higher', 'bull',
+        'shortage', 'drought', 'frost', 'freeze', 'tight supply', 'deficit',
+        'record high', 'backwardation', 'strong demand', 'price spike',
+        'hausse', 'rebond', 'rallye', 'en hausse', 'tension', 'déficit',
+        'gel', 'gèle', 'sécheresse', 'offre tendue'
+    ];
+    const bearWords = [
+        'fall', 'drop', 'decline', 'slump', 'plunge', 'slide', 'lower', 'bear',
+        'surplus', 'bumper crop', 'abundant', 'oversupply', 'record harvest',
+        'weak demand', 'contango', 'selloff', 'easing', 'glut',
+        'baisse', 'chute', 'recul', 'en baisse', 'baissé', 'surplus',
+        'récolte record', 'pression', 'offre abondante', 'faible demande'
+    ];
+
+    const bullScore = bullWords.reduce((acc, w) => acc + (text.includes(w) ? 1 : 0), 0);
+    const bearScore = bearWords.reduce((acc, w) => acc + (text.includes(w) ? 1 : 0), 0);
+    if (bullScore > bearScore) return 'BULL';
+    if (bearScore > bullScore) return 'BEAR';
+    return article.sentiment || 'NEUTRAL';
 }
 
 function renderNews() {
@@ -1188,10 +1211,11 @@ function renderNews() {
     let html = '';
     for (const a of news) {
         const summary = newsLeadText(a);
+        const sentiment = classifyNewsSentiment(a);
         html += `
         <div class="news-item">
             <div class="news-top">
-                <span class="sentiment-tag sentiment-${a.sentiment}">${a.sentiment}</span>
+                <span class="sentiment-tag sentiment-${sentiment}">${sentiment}</span>
                 <span class="news-age">${a.age || ''}</span>
             </div>
             <div class="news-title">${escHtml(a.title.slice(0, 100))}</div>

@@ -814,12 +814,16 @@ def fetch_news() -> list[dict]:
         "shortage", "drought", "frost", "freeze", "supply concern", "tight supply",
         "record high", "supply deficit", "crop damage", "low stocks",
         "backwardation", "climbing", "increase", "strong demand", "price spike",
+        "hausse", "rebond", "rallye", "en hausse", "tension", "déficit",
+        "gel", "gèle", "sécheresse", "offre tendue",
     ]
     bear_words = [
         "fall", "drop", "decline", "slump", "plunge", "slide", "lower", "bear",
         "surplus", "bumper crop", "abundant", "oversupply", "record harvest",
         "weak demand", "contango", "price drop", "selloff", "sell-off",
         "recession", "glut", "excess", "ceasefire", "deal", "easing",
+        "baisse", "chute", "recul", "en baisse", "baissé",
+        "récolte record", "pression", "offre abondante", "faible demande",
     ]
 
     articles = []
