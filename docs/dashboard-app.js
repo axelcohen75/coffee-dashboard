@@ -1082,9 +1082,8 @@ function getNextICODates(from, count) {
     return dates;
 }
 
-// ── News (diverse sources, trading outlets prioritized) ───────────────────
+// ── News (recency first) ───────────────────────────────────────────────────
 const NEWS_PRIORITY_SOURCES = ['stonex', 'barchart', 'ecom', 'sucafina'];
-const NEWS_MAX_PER_SOURCE = 2;
 const NEWS_DISPLAY_LIMIT = 12;
 const NEWS_COFFEE_KEYWORDS = ['coffee', 'arabica', 'robusta', 'café', 'cafe'];
 
@@ -1115,28 +1114,10 @@ function curateNewsForDisplay(articles, limit = NEWS_DISPLAY_LIMIT) {
 
     const selected = [];
     const seenTitles = new Set();
-    const sourceCounts = {};
-
-    function canAdd(article) {
-        const src = newsExtractSource(article.title || '') || 'unknown';
-        return (sourceCounts[src] || 0) < NEWS_MAX_PER_SOURCE;
-    }
-
     function add(article) {
         if (seenTitles.has(article.title)) return;
-        const src = newsExtractSource(article.title || '') || 'unknown';
         selected.push(article);
         seenTitles.add(article.title);
-        sourceCounts[src] = (sourceCounts[src] || 0) + 1;
-    }
-
-    for (const keyword of NEWS_PRIORITY_SOURCES) {
-        for (const article of enriched) {
-            if (newsMatchesPriority(article, keyword) && !seenTitles.has(article.title) && canAdd(article)) {
-                add(article);
-                break;
-            }
-        }
     }
 
     for (const article of enriched) {
@@ -1144,7 +1125,6 @@ function curateNewsForDisplay(articles, limit = NEWS_DISPLAY_LIMIT) {
         if (seenTitles.has(article.title)) continue;
         const isPriority = NEWS_PRIORITY_SOURCES.some(kw => newsMatchesPriority(article, kw));
         if (!newsIsCoffeeRelated(article) && !isPriority) continue;
-        if (!canAdd(article)) continue;
         add(article);
     }
 
