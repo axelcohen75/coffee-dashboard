@@ -1140,28 +1140,48 @@ function newsLeadText(article) {
     if (!summary) return '';
 
     const norm = (s) => s.toLowerCase().replace(/[^\w\sàâäéèêëïîôùûüçœæ-]/g, '').replace(/\s+/g, ' ').trim();
+    const titleNorm = norm(title.split(' - ')[0].split('…')[0]);
     const summaryNorm = norm(summary);
     if (!summaryNorm) return '';
 
-    // Always show a lead sentence when available.
+    // Remove title prefix repeated by many RSS feeds.
+    if (titleNorm && summaryNorm.startsWith(titleNorm)) {
+        const trimmed = summary.slice(title.length).replace(/^\s*[:\-–—|,.]+\s*/, '').trim();
+        if (trimmed) summary = trimmed;
+    }
+
+    // Hide when summary is effectively the same text as title.
+    const summaryWords = new Set(summaryNorm.split(' ').filter(Boolean));
+    const titleWords = new Set(titleNorm.split(' ').filter(Boolean));
+    const overlap = [...summaryWords].filter(w => titleWords.has(w)).length;
+    const denom = Math.max(1, Math.min(summaryWords.size, titleWords.size));
+    if (overlap / denom > 0.85) return '';
+
     return summary.length > 220 ? summary.slice(0, 220) + '…' : summary;
 }
 
 function classifyNewsSentiment(article) {
     const text = `${article.title || ''} ${article.summary || ''}`.toLowerCase();
+
     const bullWords = [
         'surge', 'soar', 'rally', 'jump', 'rise', 'gain', 'higher', 'bull',
         'shortage', 'drought', 'frost', 'freeze', 'tight supply', 'deficit',
-        'record high', 'backwardation', 'strong demand', 'price spike',
+        'record high', 'backwardation', 'strong demand', 'demand recovery',
+        'consumption growth', 'price spike', 'stock draw', 'inventory draw',
         'hausse', 'rebond', 'rallye', 'en hausse', 'tension', 'déficit',
-        'gel', 'gèle', 'sécheresse', 'offre tendue'
+        'gel', 'gèle', 'sécheresse', 'offre tendue', 'reprise de la demande'
     ];
     const bearWords = [
         'fall', 'drop', 'decline', 'slump', 'plunge', 'slide', 'lower', 'bear',
         'surplus', 'bumper crop', 'abundant', 'oversupply', 'record harvest',
+        'record production', 'production growth', 'record growth in coffee production',
+        'higher output', 'output increase', 'supply growth', 'supply increase',
+        'harvest pressure', 'export recovery', 'inventory build', 'stocks build',
         'weak demand', 'contango', 'selloff', 'easing', 'glut',
-        'baisse', 'chute', 'recul', 'en baisse', 'baissé', 'surplus',
-        'récolte record', 'pression', 'offre abondante', 'faible demande'
+        'baisse', 'chute', 'recul', 'en baisse', 'baissé',
+        'récolte record', 'production record', 'croissance record de la production',
+        'pression de récolte', 'reprise des exportations', 'offre abondante',
+        'offre en hausse', 'faible demande'
     ];
 
     const bullScore = bullWords.reduce((acc, w) => acc + (text.includes(w) ? 1 : 0), 0);
